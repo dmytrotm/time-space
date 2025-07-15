@@ -70,8 +70,30 @@ class WorkspaceExtractor:
         
         return rect
     
+    def calculate_original_size(self, corners: np.ndarray) -> Tuple[int, int]:
+        """
+        Обчислює оригінальний розмір прямокутника за координатами кутів
+        
+        Args:
+            corners: Упорядковані координати кутів [top_left, top_right, bottom_right, bottom_left]
+        
+        Returns:
+            Tuple (width, height) оригінального розміру
+        """
+        # Обчислюємо відстані між кутами
+        top_width = np.linalg.norm(corners[1] - corners[0])
+        bottom_width = np.linalg.norm(corners[2] - corners[3])
+        left_height = np.linalg.norm(corners[3] - corners[0])
+        right_height = np.linalg.norm(corners[2] - corners[1])
+        
+        # Використовуємо середні значення для більшої точності
+        width = int((top_width + bottom_width) / 2)
+        height = int((left_height + right_height) / 2)
+        
+        return width, height
+    
     def extract_workspace(self, image: np.ndarray, corners_list: List, ids_list: np.ndarray,
-                         corner_marker_ids: List[int], output_size: Tuple[int, int] = (800, 600),
+                         corner_marker_ids: List[int], output_size: Optional[Tuple[int, int]] = None,
                          save_path: Optional[str] = None) -> Optional[np.ndarray]:
         """
         Вирізає та вирівнює робочу область
@@ -80,8 +102,9 @@ class WorkspaceExtractor:
             image: Вхідне зображення
             corners_list: Список кутів маркерів
             ids_list: Масив ID маркерів
+
             corner_marker_ids: ID маркерів кутів [top_left, top_right, bottom_right, bottom_left]
-            output_size: Розмір вихідного зображення (width, height)
+            output_size: Розмір вихідного зображення (width, height). Якщо None, використовується оригінальний розмір
         
         Returns:
             Вирізане та вирівняне зображення робочої області
@@ -94,6 +117,10 @@ class WorkspaceExtractor:
         
         # Упорядковуємо точки
         ordered_corners = self.order_points(workspace_corners)
+        
+        # Визначаємо розмір виходу
+        if output_size is None:
+            output_size = self.calculate_original_size(ordered_corners)
         
         # Створюємо цільові точки для перспективного перетворення
         dst_points = np.array([
@@ -189,7 +216,7 @@ class WorkspaceExtractor:
         top_right = []
         bottom_left = []
         bottom_right = []
-        
+
         for i, center in enumerate(centers):
             if center[0] < center_point[0] and center[1] < center_point[1]:
                 top_left.append((i, center))
@@ -220,7 +247,7 @@ class WorkspaceExtractor:
         return np.array(corner_points, dtype=np.float32)
     
     def extract_workspace_from_rectangle(self, image: np.ndarray, corners_list: List, ids_list: np.ndarray,
-                                        output_size: Tuple[int, int] = (800, 600), 
+                                        output_size: Optional[Tuple[int, int]] = None, 
                                         save_path: Optional[str] = None) -> Optional[np.ndarray]:
         """
         Вирізає робочу область автоматично з прямокутної конфігурації маркерів
@@ -229,7 +256,7 @@ class WorkspaceExtractor:
             image: Вхідне зображення
             corners_list: Список кутів маркерів
             ids_list: Масив ID маркерів
-            output_size: Розмір вихідного зображення (width, height)
+            output_size: Розмір вихідного зображення (width, height). Якщо None, використовується оригінальний розмір
             save_path: Шлях для збереження (опційно)
         
         Returns:
@@ -243,6 +270,11 @@ class WorkspaceExtractor:
         
         # Упорядковуємо точки
         ordered_corners = self.order_points(workspace_corners)
+        
+        # Визначаємо розмір виходу
+        if output_size is None:
+            output_size = self.calculate_original_size(ordered_corners)
+            print(f"Автоматично визначений розмір: {output_size[0]}x{output_size[1]}")
         
         # Створюємо цільові точки для перспективного перетворення
         dst_points = np.array([
@@ -280,7 +312,8 @@ class WorkspaceExtractor:
         for i, corner in enumerate(corners_list):
             center = self.detector.compute_center(corner).astype(int)
             cv2.circle(output, tuple(center), 15, (128, 128, 128), -1)
-            cv2.putText(output, f"ID:{ids_list[i][0]}", (center[0] + 20, center[1]), 
+            cv2.putText(output, f"ID:{ids_list[i][0]}", (center[0] + 20, center[1]),
+                        
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (128, 128, 128), 2)
         
         # Малюємо кутові маркери зеленим
@@ -296,6 +329,11 @@ class WorkspaceExtractor:
             cv2.circle(output, tuple(pt), 10, (0, 255, 0), -1)
             cv2.putText(output, label, (pt[0] + 15, pt[1] + 5), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        
+        # Додаємо інформацію про розмір
+        original_size = self.calculate_original_size(ordered_corners)
+        cv2.putText(output, f"Size: {original_size[0]}x{original_size[1]}", 
+                   (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         
         return output
 
@@ -322,17 +360,18 @@ if __name__ == "__main__":
     if ids is not None:
         print(f"Знайдено {len(ids)} маркерів")
         
-        # Метод для прямокутної конфігурації маркерів
-        workspace = extractor.extract_workspace_from_rectangle(image, corners, ids, (800, 600), 
-                                                              os.path.join(output_dir, "rectangle_workspace.jpg"))
+        # Метод для прямокутної конфігурації маркерів з оригінальним розміром
+        workspace = extractor.extract_workspace_from_rectangle(image, corners, ids, None, 
+                                                              os.path.join(output_dir, "rectangle_workspace_original.jpg"))
         
         if workspace is not None:
-            print(f"Робоча область з прямокутника збережена як {output_dir}/rectangle_workspace.jpg")
+            print(f"Робоча область в оригінальному розмірі збережена як {output_dir}/rectangle_workspace_original.jpg")
+            print(f"Розмір вирізаної області: {workspace.shape[1]}x{workspace.shape[0]}")
         
-        # Візуалізація автоматично знайдених кутів
+        # Візуалізація автоматично знайдених кутів з інформацією про розмір
         rectangle_viz = extractor.visualize_rectangle_detection(image, corners, ids)
-        cv2.imwrite(os.path.join(output_dir, "rectangle_detection.jpg"), rectangle_viz)
-        print(f"Візуалізація прямокутника збережена як {output_dir}/rectangle_detection.jpg")
+        cv2.imwrite(os.path.join(output_dir, "rectangle_detection_with_size.jpg"), rectangle_viz)
+        print(f"Візуалізація прямокутника з розміром збережена як {output_dir}/rectangle_detection_with_size.jpg")
     
     else:
         print("Маркери не знайдені")

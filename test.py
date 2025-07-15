@@ -12,9 +12,14 @@ from AdaptivePreprocessor import AdaptivePreprocessor
 
 def test_single_method_with_workspace(dir_name, preprocessor: IPreprocessor|None = None, 
                                      output_dir="output", method_name="baseline",
-                                     extract_workspace=True, workspace_size=(800, 600)):
+                                     extract_workspace=True, use_original_size=True, 
+                                     fixed_size=(800, 600)):
     """
     Test with a single preprocessing method and optional workspace extraction
+    
+    Args:
+        use_original_size: If True, uses original calculated size. If False, uses fixed_size
+        fixed_size: Size to use when use_original_size is False
     """
     dict_names = ["cust_dictionary4", "cust_dictionary5", "cust_dictionary6", "cust_dictionary8"]
     m = MarkerDetector()
@@ -37,6 +42,7 @@ def test_single_method_with_workspace(dir_name, preprocessor: IPreprocessor|None
     image_files = glob(os.path.join(dir_name, "*.jpg"))
     failed_images = {}
     workspace_extracted = {}
+    workspace_sizes = {}  # Track extracted workspace sizes
     total_time = 0.0
     total_preprocess_time = 0.0
     total_workspace_time = 0.0
@@ -79,9 +85,12 @@ def test_single_method_with_workspace(dir_name, preprocessor: IPreprocessor|None
             if extract_workspace and extractor:
                 start_workspace_time = time.time()
                 
+                # Determine output size based on settings
+                output_size = None if use_original_size else fixed_size
+                
                 # Try automatic rectangle detection
                 workspace = extractor.extract_workspace_from_rectangle(
-                    image, corners, ids, workspace_size
+                    image, corners, ids, output_size
                 )
                 
                 elapsed_workspace = time.time() - start_workspace_time
@@ -92,14 +101,18 @@ def test_single_method_with_workspace(dir_name, preprocessor: IPreprocessor|None
                     workspace_path = os.path.join(workspace_dir, f"{name_without_ext}_workspace.jpg")
                     cv2.imwrite(workspace_path, workspace)
                     workspace_extracted[image_file] = True
+                    workspace_sizes[image_file] = (workspace.shape[1], workspace.shape[0])  # (width, height)
                     
                     # Save visualization of rectangle detection
                     viz = extractor.visualize_rectangle_detection(image, corners, ids)
                     viz_path = os.path.join(workspace_viz_dir, f"{name_without_ext}_viz.jpg")
                     cv2.imwrite(viz_path, viz)
+                    
+                    print(f"✓ Workspace extracted from {base_name}: {workspace.shape[1]}x{workspace.shape[0]}")
                 else:
                     workspace_extracted[image_file] = False
-                    print(f"Failed to extract workspace from: {base_name}")
+                    workspace_sizes[image_file] = (0, 0)
+                    print(f"✗ Failed to extract workspace from: {base_name}")
             
             # Check if expected number of markers found
             if count != 6:
@@ -110,6 +123,7 @@ def test_single_method_with_workspace(dir_name, preprocessor: IPreprocessor|None
             # Save original image to failed directory for reference
             cv2.imwrite(os.path.join(failed_dir, base_name), image)
             workspace_extracted[image_file] = False
+            workspace_sizes[image_file] = (0, 0)
     
     # Calculate averages
     avg_time = total_time / len(image_files) if image_files else 0
@@ -125,6 +139,16 @@ def test_single_method_with_workspace(dir_name, preprocessor: IPreprocessor|None
         successful_workspaces = sum(1 for success in workspace_extracted.values() if success)
         print(f'Workspace Extraction: {successful_workspaces}/{len(image_files)} successful')
         print(f"Average workspace extraction time: {avg_workspace_time:.4f} seconds")
+        print(f"Size mode: {'Original size' if use_original_size else f'Fixed size {fixed_size}'}")
+        
+        # Show workspace size statistics
+        if successful_workspaces > 0:
+            valid_sizes = [size for size in workspace_sizes.values() if size != (0, 0)]
+            if valid_sizes:
+                widths = [size[0] for size in valid_sizes]
+                heights = [size[1] for size in valid_sizes]
+                print(f"Workspace sizes - Width: {min(widths)}-{max(widths)}, Height: {min(heights)}-{max(heights)}")
+        
         print(f"Workspace images saved to: {workspace_dir}")
         print(f"Workspace visualizations saved to: {workspace_viz_dir}")
     
@@ -139,13 +163,14 @@ def test_single_method_with_workspace(dir_name, preprocessor: IPreprocessor|None
         'total_images': len(image_files),
         'failed_images': failed_images,
         'workspace_extracted': workspace_extracted,
+        'workspace_sizes': workspace_sizes,
         'avg_detection_time': avg_time,
         'avg_preprocess_time': avg_preprocess_time,
         'avg_workspace_time': avg_workspace_time
     }
 
 
-def test_workspace_extraction_only(dir_name, output_dir="workspace_only"):
+def test_workspace_extraction_only(dir_name, output_dir="workspace_only", use_original_size=True):
     """
     Test workspace extraction on images that already have detected markers
     """
@@ -164,6 +189,9 @@ def test_workspace_extraction_only(dir_name, output_dir="workspace_only"):
     image_files = glob(os.path.join(dir_name, "*.jpg"))
     results = {}
     
+    print(f"Testing workspace extraction with {'original size' if use_original_size else 'fixed size'}")
+    print("-" * 50)
+    
     for image_file in image_files:
         image = cv2.imread(image_file)
         if image is None:
@@ -179,20 +207,31 @@ def test_workspace_extraction_only(dir_name, output_dir="workspace_only"):
         if corners and len(corners) >= 4:
             # Try different workspace extraction methods
             
-            # Method 1: Automatic rectangle detection
-            workspace_rect = extractor.extract_workspace_from_rectangle(image, corners, ids, (800, 600))
+            # Method 1: Automatic rectangle detection with original or fixed size
+            output_size = None if use_original_size else (800, 600)
+            workspace_rect = extractor.extract_workspace_from_rectangle(image, corners, ids, output_size)
             
-            # Method 2: Auto crop with margin
+            # Method 2: Auto crop with margin (always uses original size)
             workspace_auto = extractor.extract_workspace_auto(image, corners, ids, margin=50)
             
             # Save results
             if workspace_rect is not None:
-                cv2.imwrite(os.path.join(workspace_dir, f"{name_without_ext}_rectangle.jpg"), workspace_rect)
+                rect_path = os.path.join(workspace_dir, f"{name_without_ext}_rectangle.jpg")
+                cv2.imwrite(rect_path, workspace_rect)
                 results[f"{name_without_ext}_rectangle"] = True
+                rect_size = f"{workspace_rect.shape[1]}x{workspace_rect.shape[0]}"
+            else:
+                results[f"{name_without_ext}_rectangle"] = False
+                rect_size = "failed"
             
             if workspace_auto is not None:
-                cv2.imwrite(os.path.join(workspace_dir, f"{name_without_ext}_auto.jpg"), workspace_auto)
+                auto_path = os.path.join(workspace_dir, f"{name_without_ext}_auto.jpg")
+                cv2.imwrite(auto_path, workspace_auto)
                 results[f"{name_without_ext}_auto"] = True
+                auto_size = f"{workspace_auto.shape[1]}x{workspace_auto.shape[0]}"
+            else:
+                results[f"{name_without_ext}_auto"] = False
+                auto_size = "failed"
             
             # Save visualization
             viz = extractor.visualize_rectangle_detection(image, corners, ids)
@@ -200,8 +239,9 @@ def test_workspace_extraction_only(dir_name, output_dir="workspace_only"):
             
             print(f"Processed: {base_name}")
             print(f"  Markers found: {len(corners)}")
-            print(f"  Rectangle method: {'✓' if workspace_rect is not None else '✗'}")
-            print(f"  Auto method: {'✓' if workspace_auto is not None else '✗'}")
+            print(f"  Rectangle method: {'✓' if workspace_rect is not None else '✗'} ({rect_size})")
+            print(f"  Auto method: {'✓' if workspace_auto is not None else '✗'} ({auto_size})")
+            print()
         else:
             print(f"Skipped {base_name}: insufficient markers ({len(corners) if corners else 0})")
             results[name_without_ext] = False
@@ -209,7 +249,7 @@ def test_workspace_extraction_only(dir_name, output_dir="workspace_only"):
     return results
 
 
-def compare_methods_with_workspace():
+def compare_methods_with_workspace(use_original_size=True):
     """
     Compare all preprocessing methods with workspace extraction
     """
@@ -221,8 +261,9 @@ def compare_methods_with_workspace():
     
     results = {}
     
+    size_mode = "ORIGINAL SIZE" if use_original_size else "FIXED SIZE"
     print("=" * 60)
-    print("TESTING ALL METHODS WITH WORKSPACE EXTRACTION")
+    print(f"TESTING ALL METHODS WITH WORKSPACE EXTRACTION ({size_mode})")
     print("=" * 60)
     
     for method_name, preprocessor in methods:
@@ -235,7 +276,8 @@ def compare_methods_with_workspace():
             output_dir=f"output_{method_name}",
             method_name=method_name,
             extract_workspace=True,
-            workspace_size=(800, 600)
+            use_original_size=use_original_size,
+            fixed_size=(800, 600)
         )
         
         results[method_name] = result
@@ -247,9 +289,20 @@ def compare_methods_with_workspace():
     
     for method_name, result in results.items():
         successful_workspaces = sum(1 for success in result['workspace_extracted'].values() if success)
+        
+        # Calculate workspace size statistics
+        valid_sizes = [size for size in result['workspace_sizes'].values() if size != (0, 0)]
+        if valid_sizes:
+            widths = [size[0] for size in valid_sizes]
+            heights = [size[1] for size in valid_sizes]
+            size_info = f"W:{min(widths)}-{max(widths)}, H:{min(heights)}-{max(heights)}"
+        else:
+            size_info = "No valid sizes"
+        
         print(f"{method_name.upper()}:")
         print(f"  Marker Detection: {result['successful_detections']}/{result['total_images']}")
         print(f"  Workspace Extraction: {successful_workspaces}/{result['total_images']}")
+        print(f"  Workspace Sizes: {size_info}")
         print(f"  Avg Detection Time: {result['avg_detection_time']:.4f}s")
         print(f"  Avg Workspace Time: {result['avg_workspace_time']:.4f}s")
         print()
@@ -257,22 +310,84 @@ def compare_methods_with_workspace():
     return results
 
 
+def test_size_comparison():
+    """
+    Compare original size vs fixed size extraction
+    """
+    print("=" * 60)
+    print("COMPARING ORIGINAL SIZE VS FIXED SIZE EXTRACTION")
+    print("=" * 60)
+    
+    # Test with original size
+    print("\n1. TESTING WITH ORIGINAL SIZE:")
+    print("-" * 40)
+    result_original = test_single_method_with_workspace(
+        "jpg_discovery", 
+        None,  # No preprocessor
+        output_dir="output_original_size",
+        method_name="original_size",
+        extract_workspace=True,
+        use_original_size=True
+    )
+    
+    # Test with fixed size
+    print("\n2. TESTING WITH FIXED SIZE (800x600):")
+    print("-" * 40)
+    result_fixed = test_single_method_with_workspace(
+        "jpg_discovery", 
+        None,  # No preprocessor
+        output_dir="output_fixed_size",
+        method_name="fixed_size",
+        extract_workspace=True,
+        use_original_size=False,
+        fixed_size=(800, 600)
+    )
+    
+    # Compare results
+    print("\n" + "=" * 60)
+    print("SIZE COMPARISON SUMMARY")
+    print("=" * 60)
+    
+    for name, result in [("Original Size", result_original), ("Fixed Size", result_fixed)]:
+        successful_workspaces = sum(1 for success in result['workspace_extracted'].values() if success)
+        valid_sizes = [size for size in result['workspace_sizes'].values() if size != (0, 0)]
+        
+        if valid_sizes:
+            widths = [size[0] for size in valid_sizes]
+            heights = [size[1] for size in valid_sizes]
+            size_info = f"W:{min(widths)}-{max(widths)}, H:{min(heights)}-{max(heights)}"
+        else:
+            size_info = "No valid sizes"
+        
+        print(f"{name}:")
+        print(f"  Successful Extractions: {successful_workspaces}/{result['total_images']}")
+        print(f"  Size Range: {size_info}")
+        print(f"  Avg Workspace Time: {result['avg_workspace_time']:.4f}s")
+        print()
+
+
 if __name__ == "__main__":
     print("Choose testing mode:")
-    print("1. Test all methods with workspace extraction")
-    print("2. Test workspace extraction only")
-    print("3. Test individual method")
+    print("1. Test all methods with workspace extraction (original size)")
+    print("2. Test all methods with workspace extraction (fixed size)")
+    print("3. Test workspace extraction only")
+    print("4. Test individual method")
+    print("5. Compare original size vs fixed size")
     
-    choice = input("Enter choice (1-3): ").strip()
+    choice = input("Enter choice (1-5): ").strip()
     
     if choice == "1":
-        compare_methods_with_workspace()
+        compare_methods_with_workspace(use_original_size=True)
     
     elif choice == "2":
-        print("\nTesting workspace extraction only:")
-        test_workspace_extraction_only("jpg_discovery")
+        compare_methods_with_workspace(use_original_size=False)
     
     elif choice == "3":
+        use_original = input("Use original size? (y/n): ").strip().lower() == 'y'
+        print(f"\nTesting workspace extraction only ({'original size' if use_original else 'fixed size'}):")
+        test_workspace_extraction_only("jpg_discovery", use_original_size=use_original)
+    
+    elif choice == "4":
         print("\nTesting individual method:")
         print("Available methods:")
         print("1. Baseline (no preprocessing)")
@@ -282,20 +397,31 @@ if __name__ == "__main__":
         method_choice = input("Enter method (1-3): ").strip()
         extract_workspace = input("Extract workspace? (y/n): ").strip().lower() == 'y'
         
+        if extract_workspace:
+            use_original = input("Use original size? (y/n): ").strip().lower() == 'y'
+        else:
+            use_original = True
+        
         if method_choice == "1":
             test_single_method_with_workspace("jpg_discovery", None, 
                                             method_name="baseline", 
-                                            extract_workspace=extract_workspace)
+                                            extract_workspace=extract_workspace,
+                                            use_original_size=use_original)
         elif method_choice == "2":
             test_single_method_with_workspace("jpg_discovery", AdaptivePreprocessor(), 
                                             method_name="adaptive", 
-                                            extract_workspace=extract_workspace)
+                                            extract_workspace=extract_workspace,
+                                            use_original_size=use_original)
         elif method_choice == "3":
             test_single_method_with_workspace("jpg_discovery", EnhancedPreprocessor(), 
                                             method_name="enhanced", 
-                                            extract_workspace=extract_workspace)
+                                            extract_workspace=extract_workspace,
+                                            use_original_size=use_original)
         else:
             print("Invalid choice!")
+    
+    elif choice == "5":
+        test_size_comparison()
     
     else:
         print("Invalid choice!")
