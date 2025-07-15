@@ -1,0 +1,11 @@
+*.jpg
+dicovery.tar
+
+__pycache__
+idea
+venv
+output
+*discovery
+workspace_*
+
+.DS_Store
