@@ -33,7 +33,7 @@ def convert_heic_to_jpg(input_path, output_dir="jpg_discovery"):
         return False
 
 if __name__ == "__main__":
-    archive_path = 'dicovery.tar'  # Note: Check if this should be 'discovery.tar'
+    archive_path = 'discovery.tar'  # Note: Check if this should be 'discovery.tar'
     extract_path = '.'
     
     # Extract tar file
