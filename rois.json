@@ -1,0 +1,52 @@
+{
+  "rois": [
+    {
+      "type": "Missing grounding",
+      "format": "rectangle",
+      "x": 1430,
+      "y": 1530,
+      "w": 770,
+      "h": 1450
+    },
+    {
+      "type": "Missing wire(blue-black-brown)",
+      "format": "rectangle",
+      "x": 1370,
+      "y": 625,
+      "w": 953,
+      "h": 2435
+    },
+    {
+      "type": "Branch wrong orientation + Twisted wirers",
+      "format": "rectangle",
+      "x": 1400,
+      "y": 1150,
+      "w": 250,
+      "h": 3150
+    },
+    {
+      "type": "Tailing missing",
+      "format": "rectangle",
+      "x": 1370,
+      "y": 600,
+      "w": 360,
+      "h": 3700
+    },
+    {
+      "type": "Taping incorrect (long fix)",
+      "format": "rectangle",
+      "x": 1370,
+      "y": 600,
+      "w": 360,
+      "h": 3700
+    },
+    {
+      "type": "Missing label",
+      "format": "rectangle",
+      "x": 1315,
+      "y": 2980,
+      "w": 415,
+      "h": 450
+    }
+  ]
+}
