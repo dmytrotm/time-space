@@ -1,52 +1,54 @@
 {
+ "_comment" : "if relative pixels will be computed during the execution of an extractor",
+  "units": "relative",
   "rois": [
     {
       "type": "Missing grounding",
       "format": "rectangle",
-      "x": 1430,
-      "y": 1530,
-      "w": 770,
-      "h": 1450
+      "x": 0.3338,
+      "y": 0.2678,
+      "w": 0.1797,
+      "h": 0.2537
     },
     {
       "type": "Missing wire(blue-black-brown)",
       "format": "rectangle",
-      "x": 1370,
-      "y": 625,
-      "w": 953,
-      "h": 2435
+      "x": 0.3198,
+      "y": 0.1094,
+      "w": 0.2224,
+      "h": 0.4264
     },
     {
       "type": "Branch wrong orientation + Twisted wirers",
       "format": "rectangle",
-      "x": 1400,
-      "y": 1150,
-      "w": 250,
-      "h": 3150
+      "x": 0.3270,
+      "y": 0.2013,
+      "w": 0.0584,
+      "h": 0.5513
     },
     {
       "type": "Tailing missing",
       "format": "rectangle",
-      "x": 1370,
-      "y": 600,
-      "w": 360,
-      "h": 3700
+      "x": 0.3198,
+      "y": 0.1050,
+      "w": 0.0840,
+      "h": 0.6475
     },
     {
       "type": "Taping incorrect (long fix)",
       "format": "rectangle",
-      "x": 1370,
-      "y": 600,
-      "w": 360,
-      "h": 3700
+      "x": 0.3198,
+      "y": 0.1050,
+      "w": 0.0840,
+      "h": 0.6475
     },
     {
       "type": "Missing label",
       "format": "rectangle",
-      "x": 1315,
-      "y": 2980,
-      "w": 415,
-      "h": 450
+      "x": 0.3070,
+      "y": 0.5217,
+      "w": 0.0969,
+      "h": 0.0787
     }
   ]
 }
