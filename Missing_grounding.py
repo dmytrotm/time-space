@@ -7,11 +7,11 @@ import pandas as pd
 
 
 
-def percentege_of_yellow(image: cv2.UMat,return_mask = False):
+def percentage_of_yellow(image: cv2.UMat,return_mask = False):
     '''
        Args:
        image: input image
-       return_mask: if true renurn tuple, consist of mask of yellow pixels and percentege. else return just float 
+       return_mask: if true renurn tuple, consist of mask of yellow pixels and percentage. else return just float 
     '''
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     lower_yellow = np.array([20, 100, 100])
@@ -25,7 +25,7 @@ def percentege_of_yellow(image: cv2.UMat,return_mask = False):
         return white_pixels/total_pixels
 
 def is_grounding_missing(image: cv2.UMat, threshold: float = 0.001):
-    p = percentege_of_yellow(img)
+    p = percentage_of_yellow(img)
     return p < threshold
 
 
@@ -47,7 +47,7 @@ if __name__ == "__main__":
             name, _ = os.path.splitext(filename)
             img_path = os.path.join(folder, filename)
             img = cv2.imread(img_path)
-            p = percentege_of_yellow(img)
+            p = percentage_of_yellow(img)
             result.loc[result['Filename'] == filename, '%'] = p
     result.loc[result['%']<0.001,'Result'] = 1
     result.loc[result['%']>0.001,'Result'] = 0
