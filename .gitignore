@@ -10,3 +10,5 @@ rois
 workspace_*
 
 .DS_Store
+
+output*
