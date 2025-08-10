@@ -91,7 +91,7 @@ class SaturationWiresMaskExtractor(WiresMaskExtractorInterface):
     def get_wires_mask(self,img: cv2.UMat)->cv2.UMat:
         hsv = cv2.cvtColor(img,cv2.COLOR_BGR2HSV)
         s = hsv[:,:,1]*2
-        mask = cv2.adaptiveThreshold(s,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,25,10)
+        mask = cv2.adaptiveThreshold(s,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,25,5)
         kernel = np.ones((3,3))
         mask = cv2.erode(mask,kernel,iterations=1)
         mask = cv2.dilate(mask,kernel,iterations=1)
