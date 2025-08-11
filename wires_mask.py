@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import time
 
 def add_borders_and_extract_big_countours(img:cv2.UMat,how_big:int,border_color:np.uint8,border_size:int=1)->cv2.UMat:
 
@@ -103,15 +104,38 @@ class SaturationWiresMaskExtractor(WiresMaskExtractorInterface):
         mask = cv2.erode(mask,kernel,iterations=2)
         return mask
 
+class TimeConsumsionWiresMaskExtractor(WiresMaskExtractorInterface):
+    '''
+        mesure time consumsion of an arbitrary mask extractor 
+    '''
+    def __init__(self,extractor:WiresMaskExtractorInterface):
+        self.extractor = extractor
+
+    def get_wires_mask(self,img: cv2.UMat)->cv2.UMat:
+        start = time.time()
+        mask = self.extractor.get_wires_mask(img)
+        end = time.time()
+        print(f"{self.extractor.__class__.__name__} Elapsed time: {end - start} seconds")
+        return mask
+
 
 if __name__ == "__main__":
     path = "rois/Taping incorrect (long fix)/IMG_1746.jpg"
-    # extractor = HorizontalGaborFilterWiresMaskExtractor()
-    #extractor = BackgroundDifferenceWiresMaskExtractor('rois/Taping incorrect (long fix)/IMG_1685.jpg')
-    extractor = SaturationWiresMaskExtractor()
+    extractor1 = HorizontalGaborFilterWiresMaskExtractor()
+    extractor2 = BackgroundDifferenceWiresMaskExtractor('rois/Taping incorrect (long fix)/IMG_1685.jpg')
+    extractor3 = SaturationWiresMaskExtractor()
+    extractor1 = TimeConsumsionWiresMaskExtractor(extractor1)
+    extractor2 = TimeConsumsionWiresMaskExtractor(extractor2)
+    extractor3 = TimeConsumsionWiresMaskExtractor(extractor3)
     img = cv2.imread(path)
-    mask = extractor.get_wires_mask(img)
-    result = cv2.bitwise_and(img,img,mask=mask)
-    cv2.imshow("mask", result)
+    mask1 = extractor1.get_wires_mask(img)
+    mask2 = extractor2.get_wires_mask(img)
+    mask3 = extractor3.get_wires_mask(img)
+    result1 = cv2.bitwise_and(img,img,mask=mask1)
+    result2 = cv2.bitwise_and(img,img,mask=mask2)
+    result3 = cv2.bitwise_and(img,img,mask=mask3)
+    cv2.imshow("1", result1)
+    cv2.imshow("2", result2)
+    cv2.imshow("3", result3)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
