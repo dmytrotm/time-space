@@ -1,10 +1,11 @@
 import cv2
 import numpy as np
 from typing import List, Tuple, Optional
+import os
+import glob
+from pathlib import Path
 
 from custom_markers_finder import MarkerDetector
-
-import os
 
 class WorkspaceExtractor:
     def __init__(self, marker_detector):
@@ -102,7 +103,6 @@ class WorkspaceExtractor:
             image: Вхідне зображення
             corners_list: Список кутів маркерів
             ids_list: Масив ID маркерів
-
             corner_marker_ids: ID маркерів кутів [top_left, top_right, bottom_right, bottom_left]
             output_size: Розмір вихідного зображення (width, height). Якщо None, використовується оригінальний розмір
         
@@ -191,60 +191,123 @@ class WorkspaceExtractor:
     def find_rectangle_corners(self, corners_list: List, ids_list: np.ndarray) -> Optional[np.ndarray]:
         """
         Автоматично знаходить 4 кутові маркери з прямокутної конфігурації
-        
-        Returns:
-            Масив координат 4 кутових маркерів або None
         """
         if len(corners_list) < 4:
             print("Потрібно мінімум 4 маркери для створення прямокутника")
             return None
         
-        # Отримуємо центри всіх маркерів
-        centers = []
-        for corner in corners_list:
-            center = self.detector.compute_center(corner)
-            centers.append(center)
+        # Отримуємо центри та true_ids
+        id_to_center = {}
+        for i, marker_id in enumerate(ids_list):
+            true_id = marker_id[0] % 10000
+            center = self.detector.compute_center(corners_list[i])
+            id_to_center[true_id] = center
         
-        centers = np.array(centers)
+        # Відомі ID
+        corner_ids = {
+            'UL': 0,    # Top-left
+            'UR': 2001, # Top-right
+            'LR': 2002, # Bottom-right
+            'LL': 3000  # Bottom-left
+        }
+        middle_ids = {
+            'ML': 2000, # Middle-left
+            'MR': 1000  # Middle-right
+        }
         
-        # Знаходимо кутові точки прямокутника
-        # Обчислюємо центр всіх маркерів
-        center_point = np.mean(centers, axis=0)
+        # Отримуємо позиції
+        positions = {}
+        for pos, tid in corner_ids.items():
+            if tid in id_to_center:
+                positions[pos] = id_to_center[tid]
+        for pos, tid in middle_ids.items():
+            if tid in id_to_center:
+                positions[pos] = id_to_center[tid]
         
-        # Класифікуємо маркери за квадрантами відносно центру
-        top_left = []
-        top_right = []
-        bottom_left = []
-        bottom_right = []
-
-        for i, center in enumerate(centers):
-            if center[0] < center_point[0] and center[1] < center_point[1]:
-                top_left.append((i, center))
-            elif center[0] >= center_point[0] and center[1] < center_point[1]:
-                top_right.append((i, center))
-            elif center[0] < center_point[0] and center[1] >= center_point[1]:
-                bottom_left.append((i, center))
-            else:
-                bottom_right.append((i, center))
+        # Естимуємо missing corners (з пріоритетом на кращі комбінації)
+        estimated = []
+        for pos in list(corner_ids.keys()):  # Копіюємо, бо можемо додавати
+            if pos not in positions:
+                if pos == 'UL':
+                    # Пріоритет: LL + UR (ліва x + верхня y)
+                    if 'LL' in positions and 'UR' in positions:
+                        ul_x = positions['LL'][0]  # Ліва x з LL
+                        ul_y = positions['UR'][1]  # Верхня y з UR
+                        positions['UL'] = np.array([ul_x, ul_y])
+                        estimated.append('UL (x from LL, y from UR)')
+                    # Альтернатива: ML + UR (ліва x + верхня y)
+                    elif 'ML' in positions and 'UR' in positions:
+                        ul_x = positions['ML'][0]
+                        ul_y = positions['UR'][1]
+                        positions['UL'] = np.array([ul_x, ul_y])
+                        estimated.append('UL (x from ML, y from UR)')
+                
+                elif pos == 'UR':
+                    # Пріоритет: LR + UL (права x + верхня y)
+                    if 'LR' in positions and 'UL' in positions:
+                        ur_x = positions['LR'][0]
+                        ur_y = positions['UL'][1]
+                        positions['UR'] = np.array([ur_x, ur_y])
+                        estimated.append('UR (x from LR, y from UL)')
+                    # Альтернатива: MR + UL
+                    elif 'MR' in positions and 'UL' in positions:
+                        ur_x = positions['MR'][0]
+                        ur_y = positions['UL'][1]
+                        positions['UR'] = np.array([ur_x, ur_y])
+                        estimated.append('UR (x from MR, y from UL)')
+                
+                elif pos == 'LR':
+                    # Пріоритет: UR + LL (права x + нижня y)
+                    if 'UR' in positions and 'LL' in positions:
+                        lr_x = positions['UR'][0]
+                        lr_y = positions['LL'][1]
+                        positions['LR'] = np.array([lr_x, lr_y])
+                        estimated.append('LR (x from UR, y from LL)')
+                    # Альтернатива: MR + LL
+                    elif 'MR' in positions and 'LL' in positions:
+                        lr_x = positions['MR'][0]
+                        lr_y = positions['LL'][1]
+                        positions['LR'] = np.array([lr_x, lr_y])
+                        estimated.append('LR (x from MR, y from LL)')
+                
+                elif pos == 'LL':
+                    # Пріоритет: UL + LR (ліва x + нижня y)
+                    if 'UL' in positions and 'LR' in positions:
+                        ll_x = positions['UL'][0]
+                        ll_y = positions['LR'][1]
+                        positions['LL'] = np.array([ll_x, ll_y])
+                        estimated.append('LL (x from UL, y from LR)')
+                    # Альтернатива: екстраполяція з UL + ML (якщо немає нижньої info)
+                    elif 'UL' in positions and 'ML' in positions:
+                        dx = positions['ML'][0] - positions['UL'][0]  # Зсув x (зазвичай ~0)
+                        dy = positions['ML'][1] - positions['UL'][1]  # Половина висоти
+                        ll_x = positions['ML'][0] + dx
+                        ll_y = positions['ML'][1] + dy
+                        positions['LL'] = np.array([ll_x, ll_y])
+                        estimated.append('LL (extrapolated from UL and ML)')
         
-        # Вибираємо найбільш крайні маркери в кожному квадранті
-        corner_points = []
-        quadrants = [top_left, top_right, bottom_right, bottom_left]
+        # Перевіряємо чи всі кути є
+        missing_after = [p for p in corner_ids if p not in positions]
+        if missing_after:
+            print(f"Не вдалося естимувати missing corners: {missing_after}")
+            return None
         
-        for quadrant in quadrants:
-            if not quadrant:
-                print("Не вдалося знайти маркери в одному з квадрантів")
-                return None
-            
-            if len(quadrant) == 1:
-                corner_points.append(quadrant[0][1])
-            else:
-                # Вибираємо найбільш віддалений від центру маркер
-                distances = [np.linalg.norm(pt[1] - center_point) for pt in quadrant]
-                farthest_idx = np.argmax(distances)
-                corner_points.append(quadrant[farthest_idx][1])
+        if estimated:
+            print(f"Естимовано позиції для: {estimated}")
         
-        return np.array(corner_points, dtype=np.float32)
+        # Додаткова перевірка логічності (основні нерівності для прямокутника)
+        if positions['UL'][0] >= positions['UR'][0] or positions['UL'][1] >= positions['LL'][1]:
+            print("Естимовані кути нелогічні (порушення порядку x/y), ігноруємо естимацію")
+            return None
+        
+        # Збираємо в масив в порядку UL, UR, LR, LL
+        workspace_corners = [
+            positions['UL'],
+            positions['UR'],
+            positions['LR'],
+            positions['LL']
+        ]
+        return np.array(workspace_corners, dtype=np.float32)
     
     def extract_workspace_from_rectangle(self, image: np.ndarray, corners_list: List, ids_list: np.ndarray,
                                         output_size: Optional[Tuple[int, int]] = None, 
@@ -313,7 +376,6 @@ class WorkspaceExtractor:
             center = self.detector.compute_center(corner).astype(int)
             cv2.circle(output, tuple(center), 15, (128, 128, 128), -1)
             cv2.putText(output, f"ID:{ids_list[i][0]}", (center[0] + 20, center[1]),
-                        
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (128, 128, 128), 2)
         
         # Малюємо кутові маркери зеленим
@@ -337,6 +399,121 @@ class WorkspaceExtractor:
         
         return output
 
+    def process_directory(self, input_dir: str, output_base_dir: str = "output"):
+        """
+        Обробляє всі зображення в директорії та зберігає результати в структурованих папках
+        
+        Args:
+            input_dir: Шлях до директорії з вхідними зображеннями
+            output_base_dir: Базова директорія для збереження результатів
+        """
+        # Створюємо базову директорію для виходу
+        output_base_path = Path(output_base_dir)
+        output_base_path.mkdir(exist_ok=True)
+        
+        # Створюємо підпапки для різних типів результатів
+        workspace_dir = output_base_path / "workspace_extracted"
+        visualization_dir = output_base_path / "rectangle_detection"
+        failed_dir = output_base_path / "failed_processing"
+        
+        workspace_dir.mkdir(exist_ok=True)
+        visualization_dir.mkdir(exist_ok=True)
+        failed_dir.mkdir(exist_ok=True)
+        
+        # Підтримувані формати зображень
+        image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.bmp', '*.tiff', '*.tif']
+        
+        # Знаходимо всі файли зображень
+        image_files = []
+        input_path = Path(input_dir)
+        
+        if input_path.is_file():
+            # Якщо передано конкретний файл
+            image_files = [input_path]
+        else:
+            # Якщо передано директорію
+            for ext in image_extensions:
+                image_files.extend(input_path.glob(ext))
+                image_files.extend(input_path.glob(ext.upper()))
+        
+        if not image_files:
+            print(f"Не знайдено зображень в {input_dir}")
+            return
+        
+        print(f"Знайдено {len(image_files)} зображень для обробки")
+        
+        # Лічильники успішності
+        success_count = 0
+        failed_count = 0
+        
+        # Обробляємо кожне зображення
+        for img_path in image_files:
+            print(f"\nОбробка: {img_path.name}")
+            
+            try:
+                # Завантажуємо зображення
+                image = cv2.imread(str(img_path))
+                
+                if image is None:
+                    print(f"Не вдалося завантажити {img_path.name}")
+                    failed_count += 1
+                    continue
+                
+                # Знаходимо маркери
+                corners, rejected, ids, _ = self.detector.detect_all_markers(image)
+                
+                if ids is not None and len(ids) >= 4:
+                    print(f"Знайдено {len(ids)} маркерів")
+                    
+                    # Генеруємо імена файлів на основі оригінального імені
+                    base_name = img_path.stem
+                    
+                    # Вирізаємо робочу область
+                    workspace_save_path = workspace_dir / f"{base_name}_workspace.jpg"
+                    workspace = self.extract_workspace_from_rectangle(
+                        image, corners, ids, None, str(workspace_save_path)
+                    )
+                    
+                    # Створюємо візуалізацію
+                    viz_save_path = visualization_dir / f"{base_name}_detection.jpg"
+                    rectangle_viz = self.visualize_rectangle_detection(image, corners, ids)
+                    cv2.imwrite(str(viz_save_path), rectangle_viz)
+                    
+                    if workspace is not None:
+                        print(f"✓ Робоча область збережена: {workspace_save_path}")
+                        print(f"✓ Візуалізація збережена: {viz_save_path}")
+                        print(f"  Розмір вирізаної області: {workspace.shape[1]}x{workspace.shape[0]}")
+                        success_count += 1
+                    else:
+                        print(f"✗ Не вдалося вирізати робочу область")
+                        # Копіюємо оригінал в папку невдалих
+                        failed_save_path = failed_dir / f"{base_name}_no_workspace.jpg"
+                        cv2.imwrite(str(failed_save_path), image)
+                        failed_count += 1
+                else:
+                    print(f"✗ Недостатньо маркерів знайдено (потрібно мінімум 4)")
+                    # Копіюємо оригінал в папку невдалих
+                    failed_save_path = failed_dir / f"{base_name}_insufficient_markers.jpg"
+                    cv2.imwrite(str(failed_save_path), image)
+                    failed_count += 1
+                    
+            except Exception as e:
+                print(f"✗ Помилка при обробці {img_path.name}: {str(e)}")
+                failed_count += 1
+        
+        # Виводимо підсумки
+        print(f"\n{'='*50}")
+        print(f"ПІДСУМКИ ОБРОБКИ")
+        print(f"{'='*50}")
+        print(f"Успішно оброблено: {success_count}")
+        print(f"Невдалих спроб: {failed_count}")
+        print(f"Загалом файлів: {len(image_files)}")
+        print(f"\nРезультати збережено в:")
+        print(f"  Робочі області: {workspace_dir}")
+        print(f"  Візуалізації: {visualization_dir}")
+        if failed_count > 0:
+            print(f"  Невдалі файли: {failed_dir}")
+
 
 # Приклад використання
 if __name__ == "__main__":
@@ -349,29 +526,40 @@ if __name__ == "__main__":
     # Ініціалізуємо екстрактор робочої області
     extractor = WorkspaceExtractor(detector)
     
-    # Завантажуємо зображення
-    image = cv2.imread("jpg_discovery/IMG_1685.jpg")
+    # Варіанти використання:
     
-    # Знаходимо маркери
+    # 1. Обробка одного файлу
+    # extractor.process_directory("workplace/rectangle_workspace_original.jpg", "project_output")
+    
+    # 2. Обробка всієї директорії
+    extractor.process_directory("jpg_discovery", "project_output")
+    
+    # 3. Можна також використовувати старий спосіб для одного зображення:
+    """
+    image = cv2.imread("jpg_discovery/IMG_1685.jpg")
     corners, rejected, ids, _ = detector.detect_all_markers(image)
-
-    output_dir = ""
     
     if ids is not None:
         print(f"Знайдено {len(ids)} маркерів")
         
-        # Метод для прямокутної конфігурації маркерів з оригінальним розміром
-        workspace = extractor.extract_workspace_from_rectangle(image, corners, ids, None, 
-                                                              os.path.join(output_dir, "rectangle_workspace_original.jpg"))
+        # Створюємо папку output/workspace в проекті
+        output_dir = Path("output/workspace")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Зберігаємо в проектну папку
+        workspace = extractor.extract_workspace_from_rectangle(
+            image, corners, ids, None, 
+            str(output_dir / "rectangle_workspace_original.jpg")
+        )
         
         if workspace is not None:
-            print(f"Робоча область в оригінальному розмірі збережена як {output_dir}/rectangle_workspace_original.jpg")
+            print(f"Робоча область збережена в {output_dir}/rectangle_workspace_original.jpg")
             print(f"Розмір вирізаної області: {workspace.shape[1]}x{workspace.shape[0]}")
         
-        # Візуалізація автоматично знайдених кутів з інформацією про розмір
+        # Візуалізація
         rectangle_viz = extractor.visualize_rectangle_detection(image, corners, ids)
-        cv2.imwrite(os.path.join(output_dir, "rectangle_detection_with_size.jpg"), rectangle_viz)
-        print(f"Візуалізація прямокутника з розміром збережена як {output_dir}/rectangle_detection_with_size.jpg")
-    
+        cv2.imwrite(str(output_dir / "rectangle_detection_with_size.jpg"), rectangle_viz)
+        print(f"Візуалізація збережена в {output_dir}/rectangle_detection_with_size.jpg")
     else:
         print("Маркери не знайдені")
+    """

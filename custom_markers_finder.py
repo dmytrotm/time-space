@@ -140,7 +140,7 @@ if __name__ == "__main__":
     m.load_dictionaries("custom_dictionaries.yml",dict_names)
 
 
-    image = cv2.imread("jpg_discovery/IMG_1685.jpg")
+    image = cv2.imread("jpg_discovery/IMG_1689.jpg")
 
     corners,rejected, ids,_ = m.detect_all_markers(image)
     # Візуалізація результатів
