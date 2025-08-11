@@ -98,7 +98,7 @@ class LabelDetector:
         ret, thresh = cv.threshold(enhanced_a_channel, self.threshold_value, 255, cv.THRESH_BINARY_INV)
         
         # Apply erosion
-        kernel = np.ones((9, 9), np.uint8)
+        kernel = np.ones((4,4), np.uint8)
         eroded_mask = cv.erode(thresh, kernel, iterations=3)
         
         # Remove small black dots
@@ -106,14 +106,15 @@ class LabelDetector:
         num_labels, labels, stats, centroids = cv.connectedComponentsWithStats(inverted_eroded, connectivity=8)
 
         total_pixels = thresh.size
-        min_area = total_pixels * (self.min_area_percentage / 100.0)
+        min_area = total_pixels * (self.min_area_percentage / 1000.0)
         
         # Create mask of small black components to remove
         small_black_mask = np.zeros_like(eroded_mask)
         for label in range(1, num_labels):
             area = stats[label, cv.CC_STAT_AREA]
             if area < min_area:
-                small_black_mask[labels == label] = 255
+                # small_black_mask[labels == label] = 255
+                pass
         
         # Final mask
         final_mask = eroded_mask.copy()
@@ -229,5 +230,5 @@ if __name__ == "__main__":
     
     # Simple usage - just feed it an image and get True/False
     # has_label = detector(cv.imread("rois/Missing label/IMG_1691.jpg"))  # numpy array
-    has_label = detector("rois/Missing label/IMG_1719_no.jpg")     # file path
+    has_label = detector("rois/Missing label/IMG_1698.jpg")     # file path
     print(has_label)  # True or False
