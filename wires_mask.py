@@ -96,7 +96,8 @@ class SaturationWiresMaskExtractor(WiresMaskExtractorInterface):
         kernel = np.ones((3,3))
         mask = cv2.erode(mask,kernel,iterations=1)
         mask = cv2.dilate(mask,kernel,iterations=1)
-        mask = add_borders_and_extract_big_countours(mask,15000,255)
+        h, w = mask.shape
+        mask = add_borders_and_extract_big_countours(mask,h*w*0.01,255)
         kernel = np.ones((11,11))
         mask = cv2.dilate(mask,kernel,iterations=2)
         kernel = np.ones((15,15))

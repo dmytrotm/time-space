@@ -1,6 +1,8 @@
 {
  "_comment" : "if relative pixels will be computed during the execution of an extractor",
-  "units": "relative",
+  
+ "general_rois":{
+ "units": "relative",
   "rois": [
     {
       "type": "Missing grounding",
@@ -51,4 +53,78 @@
       "h": 0.0787
     }
   ]
+  
+  
+},
+"tape_rois":{
+   "units": "relative",
+   "rois" : [
+    {
+      "type": "black_1",
+      "format": "rectangle",
+      "x": 0.2869,
+      "y": 0.0176,
+      "w": 0.3507,
+      "h": 0.0324
+    },
+    {
+      "type": "black_2",
+      "format": "rectangle",
+      "x": 0.2534,
+      "y": 0.0941,
+      "w": 0.3534,
+      "h": 0.0452
+    },
+    {
+      "type": "black_3",
+      "format": "rectangle",
+      "x": 0.2980,
+      "y": 0.2152,
+      "w": 0.3092,
+      "h": 0.0541
+    },
+    {
+      "type": "black_4",
+      "format": "rectangle",
+      "x": 0.3036,
+      "y": 0.3201,
+      "w": 0.3120,
+      "h": 0.0560
+    },
+    {
+      "type": "black_5",
+      "format": "rectangle",
+      "x": 0.2340,
+      "y": 0.8099,
+      "w": 0.2312,
+      "h": 0.0438
+    },
+    {
+      "type": "black_6",
+      "format": "rectangle",
+      "x": 0.2145,
+      "y": 0.9335,
+      "w": 0.2646,
+      "h": 0.0424
+    },
+    {
+      "type": "blue",
+      "format": "rectangle",
+      "x": 0.2897,
+      "y": 0.4264,
+      "w": 0.3036,
+      "h": 0.0535
+    },
+    {
+      "type": "label",
+      "format": "rectangle",
+      "x": 0.2479,
+      "y": 0.6633,
+      "w": 0.2841,
+      "h": 0.0933
+    }
+
+   ]
+}
+
 }
