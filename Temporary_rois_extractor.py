@@ -95,8 +95,8 @@ def make_masks(input_dir,output_dir,extractor:wires_mask.WiresMaskExtractorInter
 
 
 if __name__ == "__main__":
-    # input_dir = "jpg_discovery"
-    # output_dir = "rois"
+    input_dir = "jpg_discovery"
+    output_dir = "rois"
     roi_json_file = "rois.json"
 
     # # Завантаження списку ROI
