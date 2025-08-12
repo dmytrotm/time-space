@@ -103,7 +103,7 @@ if __name__ == "__main__":
     with open(roi_json_file, "r") as f:
         roi_data = json.load(f)
     gen_roi = roi_data.get("general_rois",{})
-    # cut_rois(gen_roi,input_dir,output_dir)
+    cut_rois(gen_roi,input_dir,output_dir)
 
     input_dir = "rois/Tailing missing"
     output_dir = "masks/Tailing missing"
