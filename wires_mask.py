@@ -31,7 +31,7 @@ class WiresMaskExtractorInterface:
         '''
         pass
 
-class HorizontalGaborFilterWiresMaskExtractor(WiresMaskExtractorInterface):
+class VerticalGaborFilterWiresMaskExtractor(WiresMaskExtractorInterface):
     def get_wires_mask(self,img: cv2.UMat)->cv2.UMat:
         ksize = 31  
         sigma = 4 
@@ -62,13 +62,18 @@ class HorizontalGaborFilterWiresMaskExtractor(WiresMaskExtractorInterface):
 
 class BackgroundDifferenceWiresMaskExtractor(WiresMaskExtractorInterface):
 
-    def __init__(self,backround_path:str):
+    def __init__(self,backround_path:str,horizontal_offset:int = 0):
         
         '''
         Needs a photo of the workspace withount wires 
         '''
         backround = cv2.imread(backround_path)
-        self.backround = cv2.cvtColor(backround,cv2.COLOR_BGR2HSV)
+        h, w, c = backround.shape
+
+        shifted_up = np.zeros_like(backround)  
+        shifted_up[0:h-44, :, :] = backround[44:h, :, :] 
+        self.backround = cv2.cvtColor(shifted_up,cv2.COLOR_BGR2HSV)
+        
 
     def get_wires_mask(self,img: cv2.UMat)->cv2.UMat:
         hsv = cv2.cvtColor(img,cv2.COLOR_BGR2HSV)
@@ -96,13 +101,12 @@ class SaturationWiresMaskExtractor(WiresMaskExtractorInterface):
         kernel = np.ones((3,3))
         mask = cv2.erode(mask,kernel,iterations=1)
         mask = cv2.dilate(mask,kernel,iterations=1)
-        h, w = mask.shape
-        mask = add_borders_and_extract_big_countours(mask,h*w*0.01,255)
+        mask = add_borders_and_extract_big_countours(mask,10000,255)
         kernel = np.ones((11,11))
         mask = cv2.dilate(mask,kernel,iterations=2)
         kernel = np.ones((15,15))
 
-        mask = cv2.erode(mask,kernel,iterations=2)
+        mask = cv2.erode(mask,kernel,iterations=1)
         return mask
 
 class TimeConsumsionWiresMaskExtractor(WiresMaskExtractorInterface):
@@ -121,9 +125,9 @@ class TimeConsumsionWiresMaskExtractor(WiresMaskExtractorInterface):
 
 
 if __name__ == "__main__":
-    path = "rois/Taping incorrect (long fix)/IMG_1746.jpg"
-    extractor1 = HorizontalGaborFilterWiresMaskExtractor()
-    extractor2 = BackgroundDifferenceWiresMaskExtractor('rois/Taping incorrect (long fix)/IMG_1685.jpg')
+    path = "rois/Taping incorrect (long fix)/IMG_1745.jpg"
+    extractor1 = VerticalGaborFilterWiresMaskExtractor()
+    extractor2 = BackgroundDifferenceWiresMaskExtractor('rois/Taping incorrect (long fix)/IMG_1685.jpg',horizontal_offset = 44)
     extractor3 = SaturationWiresMaskExtractor()
     extractor1 = TimeConsumsionWiresMaskExtractor(extractor1)
     extractor2 = TimeConsumsionWiresMaskExtractor(extractor2)
@@ -132,6 +136,7 @@ if __name__ == "__main__":
     mask1 = extractor1.get_wires_mask(img)
     mask2 = extractor2.get_wires_mask(img)
     mask3 = extractor3.get_wires_mask(img)
+
     result1 = cv2.bitwise_and(img,img,mask=mask1)
     result2 = cv2.bitwise_and(img,img,mask=mask2)
     result3 = cv2.bitwise_and(img,img,mask=mask3)

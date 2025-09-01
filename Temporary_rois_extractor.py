@@ -87,7 +87,8 @@ def make_masks(input_dir,output_dir,extractor:wires_mask.WiresMaskExtractorInter
 
             img = cv2.imread(img_path)
             mask = extractor.get_wires_mask(img)
-            result = cv2.bitwise_and(img,img,mask=mask)
+            result = img.copy()
+            result[mask==0] = (255,255,255)
             path = os.path.join(output_dir,filename)
             cv2.imwrite(path,result)
     print("✅ Усі Маски успішно накладені та збережені")
