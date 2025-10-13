@@ -1,4 +1,4 @@
-# Time-Space Analysis
+# Time&Space Project
 
 This project is a computer vision application for analyzing images of a workspace to detect the presence of grounding wires, tape, and labels within predefined regions of interest (ROIs). It also estimates location and size of the tapes.
 
