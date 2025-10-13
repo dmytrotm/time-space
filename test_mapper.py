@@ -1,7 +1,7 @@
 import cv2
 import json
-from roi_cropper import ROICropper
-from yolo_roi_mapper import YOLOROIMapper
+from utils.roi_cropper import ROICropper
+from utils.yolo_roi_mapper import YOLOROIMapper
 
 def main():
     # 1. Load original image and ROI data

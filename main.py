@@ -1,0 +1,83 @@
+from utils import TakePhotos, WorkspaceExtractor, ROICropper
+from detectors.missing_grounding import GroundingWireDetector
+from detectors.tape_detector import TapeDetector
+import cv2
+import json
+
+if __name__ == "__main__":
+    # Load ROI configurations
+    with open("configs/rois_z1.json", 'r') as f:
+        roi_data_z1 = json.load(f)
+    with open("configs/rois_z2.json", 'r') as f:
+        roi_data_z2 = json.load(f)
+
+    # Create instances of the tools
+    cameras = TakePhotos(
+        "dataset/Test_Case4/Z1_0_4.png",
+        "dataset/Test_Case4/Z2_0_4.png"
+    )
+    images = cameras.serve_photos()
+
+    extractor = WorkspaceExtractor("configs/custom_markers.yaml")
+    roi_cropper_z1 = ROICropper(roi_data_z1)
+    roi_cropper_z2 = ROICropper(roi_data_z2)
+    grounding_detector = GroundingWireDetector()
+    tape_detector = TapeDetector(conf_threshold=0.5) # Set confidence threshold
+
+    if not images:
+        print("No images were loaded. Exiting.")
+    else:
+        print("Displaying images. Press any key to close all windows.")
+        for i, image in enumerate(images):
+            zone_number = i + 1
+            
+            workspace = extractor.extract_workspace(image)
+            
+            if workspace is not None:
+                cv2.imshow(f"Workspace Zone {zone_number}", workspace)
+
+                # Select the correct ROI cropper for the zone
+                if zone_number == 1:
+                    rois = roi_cropper_z1.crop(workspace)
+                else:
+                    rois = roi_cropper_z2.crop(workspace)
+
+                # Process and display each ROI
+                for roi_name, roi_image in rois.items():
+                    if roi_image is not None and roi_image.size > 0:
+                        # Special handling for wires with id 1 in zone 2
+                        if zone_number == 2 and roi_name == "WIRES_001":
+                            is_present = grounding_detector.is_present(roi_image) 
+                            if is_present:
+                                print(f"\033[92mGrounding wire is present\033[0m")
+                            else:
+                                print(f"\033[91mGrounding wire is missing\033[0m")
+                        
+                        else:
+                            # Apply TapeDetector and visualize results
+                            results = tape_detector.detect(roi_image)
+                            annotated_roi = results[0].plot()
+                            # cv2.imshow(f"Tape Detections in {roi_name}", annotated_roi)
+
+                            # Check if the correct object is detected
+                            detected_classes = results[0].boxes.cls.tolist() if results[0].boxes is not None else []
+                            
+                            if roi_name.startswith("TAPE"):
+                                if 1 in detected_classes:
+                                    print(f"\033[92mOK: Tape detected in {roi_name}\033[0m")
+                                else:
+                                    print(f"\033[91mFAIL: Tape NOT detected in {roi_name}\033[0m")
+                                    cv2.imshow(f"Tape Detections in {roi_name}", roi_image)
+                                    
+                            elif roi_name.startswith("LABEL"):
+                                if 0 in detected_classes:
+                                    print(f"\033[92mOK: Label detected in {roi_name}\033[0m")
+                                else:
+                                    print(f"\033[91mFAIL: Label NOT detected in {roi_name}\033[0m")
+                    else:
+                        print(f"Warning: ROI {roi_name} from Zone {zone_number} is empty or invalid.")
+            else:
+                print(f"Warning: Workspace for Zone {zone_number} could not be extracted.")
+
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()

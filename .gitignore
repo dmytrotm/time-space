@@ -1,5 +1,9 @@
 *.jpg
 dicovery.tar
+.env
+zones_by_iteration
+dataset*
+.venv
 
 __pycache__
 idea

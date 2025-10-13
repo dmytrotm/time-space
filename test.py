@@ -4,7 +4,7 @@ from glob import glob
 import os
 from IPreprocessor import IPreprocessor
 from custom_markers_finder import MarkerDetector
-from WorkspaceExtractor import WorkspaceExtractor  # Import your workspace extractor
+from utils.workspace_extractor import WorkspaceExtractor  # Import your workspace extractor
 import time
 from EnhancedPreprocessor import EnhancedPreprocessor
 from AdaptivePreprocessor import AdaptivePreprocessor
