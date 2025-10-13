@@ -67,12 +67,22 @@ if __name__ == "__main__":
                             if roi_name.startswith("TAPE"):
                                 if 1 in detected_classes:
                                     print(f"\033[92mOK: Tape detected in {roi_name}\033[0m")
-                                    deviation_results = tape_deviation_detector.detect_tape_and_find_deviation(roi_image, roi_name)
-                                    if deviation_results:
-                                        print(f"Deviation results for {roi_name}: {deviation_results}")
+                                    for box in results[0].boxes:
+                                        x_center, y_center, width, height = box.xywhn[0]
+                                        # Extract index from roi_name (e.g., 'TAPE_1' -> 1)
+                                        try:
+                                            index = int(roi_name.split('_')[-1])
+                                            correct = tape_deviation_detector.is_tape_correct(index, x_center, width)
+                                            if correct == -1:
+                                                print(f"\033[91m    -- FAIL: Tape is too far\033[0m")
+                                            elif correct == 1:
+                                                print(f"\033[91m    -- FAIL: Tape is too long or too short\033[0m")
+                                            elif correct == 0:
+                                                print(f"\033[92m    -- OK: Tape fine\033[0m")
+                                        except (ValueError, IndexError):
+                                            print(f"\033[91mCould not determine tape index from ROI name: {roi_name}\033[0m")
                                 else:
                                     print(f"\033[91mFAIL: Tape NOT detected in {roi_name}\033[0m")
-                                    cv2.imshow(f"Tape Detections in {roi_name}", roi_image)
                                     
                             elif roi_name.startswith("LABEL"):
                                 if 0 in detected_classes:
