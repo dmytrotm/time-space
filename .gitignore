@@ -1,5 +1,5 @@
 *.jpg
-dicovery.tar
+*.tar
 .env
 zones_by_iteration
 dataset*
@@ -9,7 +9,12 @@ __pycache__
 idea
 venv
 output
+rois
 *discovery
 workspace_*
-
+project_output
+masks
+tapes
 .DS_Store
+
+output*

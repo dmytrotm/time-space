@@ -1,6 +1,5 @@
 from utils import TakePhotos, WorkspaceExtractor, ROICropper
-from detectors.missing_grounding import GroundingWireDetector
-from detectors.tape_detector import TapeDetector
+from detectors import GroundingWireDetector, TapeDetector, TapeDeviationDetector
 import cv2
 import json
 
@@ -10,6 +9,8 @@ if __name__ == "__main__":
         roi_data_z1 = json.load(f)
     with open("configs/rois_z2.json", 'r') as f:
         roi_data_z2 = json.load(f)
+    with open("configs/positions.json", 'r') as f:
+        positions = json.load(f)
 
     # Create instances of the tools
     cameras = TakePhotos(
@@ -22,7 +23,8 @@ if __name__ == "__main__":
     roi_cropper_z1 = ROICropper(roi_data_z1)
     roi_cropper_z2 = ROICropper(roi_data_z2)
     grounding_detector = GroundingWireDetector()
-    tape_detector = TapeDetector(conf_threshold=0.5) # Set confidence threshold
+    tape_detector = TapeDetector(conf_threshold=0.8)
+    tape_deviation_detector = TapeDeviationDetector(positions)
 
     if not images:
         print("No images were loaded. Exiting.")
@@ -46,7 +48,7 @@ if __name__ == "__main__":
                 for roi_name, roi_image in rois.items():
                     if roi_image is not None and roi_image.size > 0:
                         # Special handling for wires with id 1 in zone 2
-                        if zone_number == 2 and roi_name == "WIRES_001":
+                        if roi_name.startswith("GROUNDING"):
                             is_present = grounding_detector.is_present(roi_image) 
                             if is_present:
                                 print(f"\033[92mGrounding wire is present\033[0m")
@@ -65,6 +67,9 @@ if __name__ == "__main__":
                             if roi_name.startswith("TAPE"):
                                 if 1 in detected_classes:
                                     print(f"\033[92mOK: Tape detected in {roi_name}\033[0m")
+                                    deviation_results = tape_deviation_detector.detect_tape_and_find_deviation(roi_image, roi_name)
+                                    if deviation_results:
+                                        print(f"Deviation results for {roi_name}: {deviation_results}")
                                 else:
                                     print(f"\033[91mFAIL: Tape NOT detected in {roi_name}\033[0m")
                                     cv2.imshow(f"Tape Detections in {roi_name}", roi_image)
