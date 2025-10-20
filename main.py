@@ -1,4 +1,4 @@
-from utils import TakePhotos, WorkspaceExtractor, ROICropper
+from utils import ImageServer, WorkspaceExtractor, ROICropper
 from detectors import GroundingWireDetector, TapeDetector, TapeDeviationDetector
 from utils.yolo_roi_mapper import YOLOROIMapper
 import cv2
@@ -17,11 +17,11 @@ if __name__ == "__main__":
         positions = json.load(f)
 
     # Create instances of the tools
-    cameras = TakePhotos(
+    cameras = ImageServer(
         "dataset/Test_Case4/Z1_0_4.png",
         "dataset/Test_Case4/Z2_0_4.png"
     )
-    images = cameras.serve_photos()
+    images = cameras.take_photos()
 
     extractor = WorkspaceExtractor("configs/custom_markers.yaml")
     roi_cropper_z1 = ROICropper(roi_data_z1)

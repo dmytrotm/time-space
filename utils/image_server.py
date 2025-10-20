@@ -3,7 +3,7 @@ import os
 
 # Needs to be implemented, currenctly we just serve the photos from dataset
 
-class TakePhotos:
+class ImageServer:
     def __init__(self, *image_paths):
         """
         Initializes with a list of image paths.
@@ -12,7 +12,7 @@ class TakePhotos:
         """
         self.image_paths = image_paths
 
-    def serve_photos(self):
+    def take_photos(self):
         """
         Loads images from the stored paths.
         Returns:
