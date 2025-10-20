@@ -10,6 +10,9 @@ positions_json = "configs/positions.json"
 
 class TestTapeDeviationDetector(unittest.TestCase):
     def test_detector(self):
+        with open(positions_json, "r", encoding="utf-8") as f:
+            positions_json = json.load(f)     
+
         df = pandas.read_csv(dataframe_path)
         df["GROI"] = (df["Зона"]-2)*-5+df['ROI'] - 2*(df['class']-1)
         model = YOLO(model_path)
