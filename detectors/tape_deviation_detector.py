@@ -9,10 +9,10 @@ class TapeDeviationDetector:
             0 - correct
         '''
 
-        x = self.positions_json[(index-1)*2]["Mean"]  
+        x = self.positions_json[index*2]["Mean"]
         dx = 0.3
-        w = self.positions_json[(index - 1) * 2 + 1]["Mean"]
-        dw = self.positions_json[(index - 1) * 2 + 1]["IQR"] * 2
+        w = self.positions_json[index*2+1]["Mean"]
+        dw = self.positions_json[index*2+1]["IQR"] * 2
 
 
         if abs(x - new_x) > dx:

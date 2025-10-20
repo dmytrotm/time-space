@@ -3,14 +3,15 @@ import pandas
 from detectors.tape_deviation_detector import TapeDeviationDetector
 from ultralytics import YOLO
 import os
+import json
 dataframe_path = "UnitTests/labels_parsed.csv"
 dataset_path = "yolo11dataset_grouped"
 model_path = "models/tape_detector.pt"
-positions_json = "configs/positions.json"
+#positions_json = "configs/positions.json"
 
 class TestTapeDeviationDetector(unittest.TestCase):
     def test_detector(self):
-        with open(positions_json, "r", encoding="utf-8") as f:
+        with open("configs/positions.json", "r", encoding="utf-8") as f:
             positions_json = json.load(f)     
 
         df = pandas.read_csv(dataframe_path)
