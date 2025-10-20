@@ -3,16 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import json
+import logging
+
+from utils.roi_cropper import ROICropper
 
 class YOLOROIMapper:
 
     def __init__(self, class_names=["label", "tape"]):
-        """
-        Initialize the ROI mapper
-
-        Args:
-            class_names (list): List of class names corresponding to class IDs
-        """
         self.class_names = class_names or []
         self.colors = [
             (255, 0, 0),
@@ -26,41 +23,22 @@ class YOLOROIMapper:
             (0, 0, 128),
             (128, 128, 0),
         ]
+        self.logger = logging.getLogger(__name__)
 
     def load_positions_json(self, json_path):
-        """
-        Load positions from JSON file
-
-        Args:
-            json_path (str): Path to JSON file with tape/wire positions
-
-        Returns:
-            dict: Parsed JSON data
-        """
         try:
             with open(json_path, "r") as f:
                 return json.load(f)
         except FileNotFoundError:
-            print(f"Error: JSON file {json_path} not found")
+            self.logger.error(f"JSON file {json_path} not found")
             return None
         except json.JSONDecodeError:
-            print(f"Error: Invalid JSON format in {json_path}")
+            self.logger.error(f"Invalid JSON format in {json_path}")
             return None
 
     def get_tape_roi_coordinates(self, positions_data, tape_id, original_size):
-        """
-        Get ROI coordinates for a specific tape from JSON data
-
-        Args:
-            positions_data (dict): Parsed JSON data
-            tape_id (int): ID of the tape to use as ROI
-            original_size (tuple): (width, height) of original image
-
-        Returns:
-            tuple: (roi_position, roi_size) or (None, None) if tape not found
-        """
         if not positions_data or "tapes" not in positions_data:
-            print("Error: No tapes data found in JSON")
+            self.logger.error("No tapes data found in JSON")
             return None, None
 
         target_tape = None
@@ -70,9 +48,9 @@ class YOLOROIMapper:
                 break
 
         if target_tape is None:
-            print(f"Error: Tape with ID {tape_id} not found")
+            self.logger.error(f"Tape with ID {tape_id} not found")
             available_ids = [tape["id"] for tape in positions_data["tapes"]]
-            print(f"Available tape IDs: {available_ids}")
+            self.logger.info(f"Available tape IDs: {available_ids}")
             return None, None
 
         orig_w, orig_h = original_size
@@ -93,22 +71,13 @@ class YOLOROIMapper:
         roi_w = min(orig_w - roi_x, roi_w + 2 * padding)
         roi_h = min(orig_h - roi_y, roi_h + 2 * padding)
 
-        print(
+        self.logger.info(
             f"Tape {tape_id} ROI: position=({roi_x}, {roi_y}), size=({roi_w}x{roi_h})"
         )
 
         return (roi_x, roi_y), (roi_w, roi_h)
 
     def load_yolo_annotations_from_file(self, annotation_path):
-        """
-        Load YOLO format annotations from file (kept as separate method for compatibility)
-
-        Args:
-            annotation_path (str): Path to YOLO annotation file
-
-        Returns:
-            list: List of [class_id, x_center, y_center, width, height] (normalized)
-        """
         annotations = []
         if os.path.exists(annotation_path):
             with open(annotation_path, "r") as f:
@@ -124,7 +93,7 @@ class YOLOROIMapper:
                             [class_id, x_center, y_center, width, height]
                         )
         else:
-            print(f"Warning: Annotation file {annotation_path} not found")
+            self.logger.warning(f"Annotation file {annotation_path} not found")
 
         return annotations
 
@@ -136,21 +105,8 @@ class YOLOROIMapper:
         original_size,
         tape_id,
     ):
-        """
-        Map YOLO annotations from ROI coordinates to original image coordinates and create JSON structure
-
-        Args:
-            roi_annotations (list): List of YOLO annotations in ROI coordinates
-            roi_position (tuple): (x, y) position of ROI in original image
-            roi_size (tuple): (width, height) of ROI
-            original_size (tuple): (width, height) of original image
-            tape_id (int): ID of the tape (used as ROI ID)
-
-        Returns:
-            list: List of ROI structures for this specific tape
-        """
         if roi_position is None or roi_position[0] is None:
-            print("Warning: Invalid ROI position")
+            self.logger.warning("Invalid ROI position")
             return []
 
         mapped_rois = []
@@ -173,11 +129,9 @@ class YOLOROIMapper:
             new_roi_width = 0.032
             new_roi_height = 0.04266
 
-            # The right border of the new ROI is at the center of the detected object
             new_roi_end_x = x_center_orig_norm
             new_roi_start_x = new_roi_end_x - new_roi_width
 
-            # The y-center of the new ROI is at the y-center of the detected object
             new_roi_start_y = y_center_orig_norm - new_roi_height / 2
             new_roi_end_y = y_center_orig_norm + new_roi_height / 2
 
@@ -199,69 +153,41 @@ class YOLOROIMapper:
 
     def process_roi_mapping(
         self,
-        original_img_path,
+        original_img,
         roi_annotations,
-        positions_json_path,
+        positions_data,
     ):
-        """
-        Complete process to map ROI annotations to original image and return JSON
-        Now only accepts dictionary format for consistency
-
-        Args:
-            original_img_path (str): Path to original image
-            roi_annotations (dict): Dictionary with tape_id as key and list of annotations as value
-                                  e.g., {1: [[1, 0.5, 0.5, 0.2, 0.2]], 2: [[1, 0.3, 0.3, 0.1, 0.1]]}
-            positions_json_path (str): Path to JSON file with tape positions
-
-        Returns:
-            dict: JSON object with all mapped ROI structures from all tapes
-        """
-        if not isinstance(roi_annotations, dict):
-            print(
-                "Error: roi_annotations must be a dictionary with tape_id as key and annotations list as value"
-            )
-            print(
-                "Example: {1: [[1, 0.5, 0.5, 0.2, 0.2]], 2: [[1, 0.3, 0.3, 0.1, 0.1]]}"
-            )
-            return {"orientation": []}
-
-        if not os.path.exists(original_img_path):
-            print(f"Error: Original image {original_img_path} not found")
-            return {"orientation": []}
-
-        original_img = cv2.imread(original_img_path)
         if original_img is None:
-            print(f"Error: Could not load image {original_img_path}")
+            self.logger.error(f"Could not load image")
             return {"orientation": []}
 
         original_size = (
             original_img.shape[1],
             original_img.shape[0],
         )
-        print(f"Original image size: {original_size}")
+        self.logger.info(f"Original image size: {original_size}")
 
-        positions_data = self.load_positions_json(positions_json_path)
         if positions_data is None:
             return {"orientation": []}
 
         all_rois = []
 
         for tape_id, annotations in roi_annotations.items():
-            print(f"\n--- Processing tape {tape_id} ---")
+            self.logger.info(f"\n--- Processing tape {tape_id} ---")
 
             roi_position, roi_size = self.get_tape_roi_coordinates(
                 positions_data, tape_id, original_size
             )
 
             if roi_position is None:
-                print(f"Skipping tape {tape_id} due to invalid ROI")
+                self.logger.warning(f"Skipping tape {tape_id} due to invalid ROI")
                 continue
 
             if not annotations:
-                print(f"No annotations provided for tape {tape_id}")
+                self.logger.info(f"No annotations provided for tape {tape_id}")
                 continue
 
-            print(f"Processing {len(annotations)} annotations for tape {tape_id}")
+            self.logger.info(f"Processing {len(annotations)} annotations for tape {tape_id}")
 
             mapped_rois = self.map_roi_annotations_to_original(
                 annotations, roi_position, roi_size, original_size, tape_id
@@ -270,34 +196,15 @@ class YOLOROIMapper:
             if mapped_rois:
                 all_rois.extend(mapped_rois)
 
-        print(f"\n=== PROCESSING COMPLETE ===")
-        print(f"Total ROI structures created: {len(all_rois)}")
+        self.logger.info(f"\n=== PROCESSING COMPLETE ===")
+        self.logger.info(f"Total ROI structures created: {len(all_rois)}")
 
         return {"orientation": all_rois}
 
-    def visualize_rois_on_image(self, original_img_path, result_json, positions_json_path, roi_annotations=None):
-        """
-        Visualize the ROIs on the original image.
-
-        Args:
-            original_img_path (str): Path to the original image.
-            result_json (dict): The JSON object with ROI structures.
-            positions_json_path (str): Path to the JSON file with old tape positions.
-            roi_annotations (dict): Dictionary with tape_id as key and list of annotations as value.
-        """
-        if not os.path.exists(original_img_path):
-            print(f"Error: Original image {original_img_path} not found")
-            return
-
-        img = cv2.imread(original_img_path)
-        if img is None:
-            print(f"Error: Could not load image {original_img_path}")
-            return
-
-        original_size = (img.shape[1], img.shape[0])
+    def visualize_rois_on_image(self, original_img, result_json, positions_json_path, roi_annotations=None):
+        original_size = (original_img.shape[1], original_img.shape[0])
         orig_w, orig_h = original_size
 
-        # Draw old ROIs
         positions_data = self.load_positions_json(positions_json_path)
         if positions_data and 'tapes' in positions_data:
             for tape in positions_data['tapes']:
@@ -305,11 +212,10 @@ class YOLOROIMapper:
                 start_y_px = int(tape['start']['y'] * orig_h)
                 end_x_px = int(tape['end']['x'] * orig_w)
                 end_y_px = int(tape['end']['y'] * orig_h)
-                cv2.rectangle(img, (start_x_px, start_y_px), (end_x_px, end_y_px), (255, 0, 0), 2) # Blue for old ROIs
+                cv2.rectangle(original_img, (start_x_px, start_y_px), (end_x_px, end_y_px), (255, 0, 0), 2)
                 label = f"ID: {tape.get('id', 'N/A')}"
-                cv2.putText(img, label, (start_x_px, start_y_px - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255,0,0), 2)
+                cv2.putText(original_img, label, (start_x_px, start_y_px - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255,0,0), 2)
 
-        # Draw detected objects
         if roi_annotations:
             for tape_id, annotations in roi_annotations.items():
                 if not annotations:
@@ -339,14 +245,13 @@ class YOLOROIMapper:
                     end_x = x_center_orig_px + width_roi_px // 2
                     end_y = y_center_orig_px + height_roi_px // 2
 
-                    cv2.rectangle(img, (start_x, start_y), (end_x, end_y), (0, 255, 0), 2) # Green for detected objects
+                    cv2.rectangle(original_img, (start_x, start_y), (end_x, end_y), (0, 255, 0), 2)
 
 
         if "orientation" not in result_json or not result_json["orientation"]:
-            print("No ROIs to visualize.")
-            # Still show the image with old ROIs if any
+            self.logger.info("No ROIs to visualize.")
             plt.figure(figsize=(15, 15))
-            plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+            plt.imshow(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
             plt.title("ROIs on Original Image")
             plt.axis("off")
             plt.show()
@@ -361,15 +266,15 @@ class YOLOROIMapper:
             class_id = roi.get("id", 0) % len(self.colors)
             color = self.colors[class_id]
 
-            cv2.rectangle(img, (start_x, start_y), (end_x, end_y), color, 2)
+            cv2.rectangle(original_img, (start_x, start_y), (end_x, end_y), color, 2)
 
             label = f"ID: {roi.get('id', 'N/A')}"
             (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
             cv2.rectangle(
-                img, (start_x, start_y - h - 10), (start_x + w, start_y), color, -1
+                original_img, (start_x, start_y - h - 10), (start_x + w, start_y), color, -1
             )
             cv2.putText(
-                img,
+                original_img,
                 label,
                 (start_x, start_y - 5),
                 cv2.FONT_HERSHEY_SIMPLEX,
@@ -383,3 +288,11 @@ class YOLOROIMapper:
         plt.title("ROIs on Original Image")
         plt.axis("off")
         plt.show()
+
+    def get_images(self, workspace, roi_annotations, positions_data):
+        new_rois_json = self.process_roi_mapping(workspace, roi_annotations, positions_data)
+        cropper = ROICropper(new_rois_json)
+
+        new_rois = cropper.crop(workspace)
+
+        return new_rois

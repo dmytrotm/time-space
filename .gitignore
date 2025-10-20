@@ -11,7 +11,7 @@ venv
 output
 rois
 *discovery
-workspace_*
+workspace
 project_output
 masks
 tapes

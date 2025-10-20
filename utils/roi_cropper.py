@@ -1,13 +1,14 @@
 import numpy as np
+import logging
 
 class ROICropper:
     def __init__(self, roi_data):
         self.roi_objects = {}
         self.total_rois = 0
+        self.logger = logging.getLogger(__name__)
         self.process_rois(roi_data)
 
     def process_rois(self, roi_data):
-        """Process ROIs from a JSON object (flexible format)."""
         if not isinstance(roi_data, dict):
             raise TypeError("ROI data must be a dictionary.")
 
@@ -16,21 +17,20 @@ class ROICropper:
                 if value and all(self.is_valid_roi_object(obj) for obj in value):
                     self.roi_objects[key] = value
                     self.total_rois += len(value)
-                    print(f"Loaded {len(value)} {key}")
+                    self.logger.info(f"Loaded {len(value)} {key}")
             elif isinstance(value, dict) and self.is_valid_roi_object(value):
                 self.roi_objects[key] = [value]
                 self.total_rois += 1
-                print(f"Loaded 1 {key}")
+                self.logger.info(f"Loaded 1 {key}")
             else:
-                print(f"Skipping '{key}': not a valid ROI object or list of ROI objects")
+                self.logger.warning(f"Skipping '{key}': not a valid ROI object or list of ROI objects")
 
         if self.total_rois == 0:
             raise ValueError("No valid ROI objects found in the data")
 
-        print(f"Total ROIs loaded: {self.total_rois}")
+        self.logger.info(f"Total ROIs loaded: {self.total_rois}")
 
     def is_valid_roi_object(self, obj):
-        """Check if an object is a valid ROI with required structure."""
         if not isinstance(obj, dict):
             return False
         
@@ -57,7 +57,6 @@ class ROICropper:
             return False
 
     def calculate_roi_bounds(self, image_width, image_height, roi):
-        """Calculate pixel bounds for a rectangular ROI."""
         start_x = int(roi["start"]["x"] * image_width)
         start_y = int(roi["start"]["y"] * image_height)
         end_x = int(roi["end"]["x"] * image_width)
@@ -69,7 +68,6 @@ class ROICropper:
         return x1, y1, x2, y2
 
     def crop(self, image):
-        """Crop all ROIs from a single image and return them."""
         if not isinstance(image, np.ndarray):
             raise TypeError("Input image must be a NumPy array.")
 
@@ -87,13 +85,13 @@ class ROICropper:
                 y2 = max(0, min(y2, height))
 
                 if x2 <= x1 or y2 <= y1:
-                    print(f"Warning: Invalid bounds for {category_name} {roi_id}")
+                    self.logger.warning(f"Invalid bounds for {category_name} {roi_id}")
                     continue
 
                 cropped_roi = image[y1:y2, x1:x2]
 
                 if cropped_roi.size == 0:
-                    print(f"Warning: Empty crop for {category_name} {roi_id}")
+                    self.logger.warning(f"Empty crop for {category_name} {roi_id}")
                     continue
                 
                 key = f"{category_name.upper()}_{roi_id:03d}"

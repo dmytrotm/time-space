@@ -1,9 +1,13 @@
 from utils import TakePhotos, WorkspaceExtractor, ROICropper
 from detectors import GroundingWireDetector, TapeDetector, TapeDeviationDetector
+from utils.yolo_roi_mapper import YOLOROIMapper
 import cv2
 import json
+import logging
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
     # Load ROI configurations
     with open("configs/rois_z1.json", 'r') as f:
         roi_data_z1 = json.load(f)
@@ -25,18 +29,19 @@ if __name__ == "__main__":
     grounding_detector = GroundingWireDetector()
     tape_detector = TapeDetector(conf_threshold=0.8)
     tape_deviation_detector = TapeDeviationDetector(positions)
+    yolo_roi_mapper = YOLOROIMapper()
 
     if not images:
-        print("No images were loaded. Exiting.")
+        logging.info("No images were loaded. Exiting.")
     else:
-        print("Displaying images. Press any key to close all windows.")
+        logging.info("Displaying images. Press any key to close all windows.")
         for i, image in enumerate(images):
             zone_number = i + 1
             
             workspace = extractor.extract_workspace(image)
             
             if workspace is not None:
-                cv2.imshow(f"Workspace Zone {zone_number}", workspace)
+                # cv2.imshow(f"Workspace Zone {zone_number}", workspace)
 
                 # Select the correct ROI cropper for the zone
                 if zone_number == 1:
@@ -45,15 +50,16 @@ if __name__ == "__main__":
                     rois = roi_cropper_z2.crop(workspace)
 
                 # Process and display each ROI
+                annotations = {}
                 for roi_name, roi_image in rois.items():
                     if roi_image is not None and roi_image.size > 0:
                         # Special handling for wires with id 1 in zone 2
                         if roi_name.startswith("GROUNDING"):
                             is_present = grounding_detector.is_present(roi_image) 
                             if is_present:
-                                print(f"\033[92mGrounding wire is present\033[0m")
+                                logging.info(f"\033[92mGrounding wire is present\033[0m")
                             else:
-                                print(f"\033[91mGrounding wire is missing\033[0m")
+                                logging.warning(f"\033[91mGrounding wire is missing\033[0m")
                         
                         else:
                             # Apply TapeDetector and visualize results
@@ -65,34 +71,45 @@ if __name__ == "__main__":
                             detected_classes = results[0].boxes.cls.tolist() if results[0].boxes is not None else []
                             
                             if roi_name.startswith("TAPE"):
+                                tape_id = int(roi_name.split('_')[-1])
+                                annotations[tape_id] = []
                                 if 1 in detected_classes:
-                                    print(f"\033[92mOK: Tape detected in {roi_name}\033[0m")
+                                    logging.info(f"\033[92mOK: Tape detected in {roi_name}\033[0m")
                                     for box in results[0].boxes:
                                         x_center, y_center, width, height = box.xywhn[0]
+                                        annotations[tape_id].append([int(box.cls[0]), x_center, y_center, width, height])
                                         # Extract index from roi_name (e.g., 'TAPE_1' -> 1)
                                         try:
                                             index = int(roi_name.split('_')[-1])
                                             correct = tape_deviation_detector.is_tape_correct(index, x_center, width)
                                             if correct == -1:
-                                                print(f"\033[91m    -- FAIL: Tape is too far\033[0m")
+                                                logging.warning(f"\033[91m    -- FAIL: Tape is too far\033[0m")
                                             elif correct == 1:
-                                                print(f"\033[91m    -- FAIL: Tape is too long or too short\033[0m")
+                                                logging.warning(f"\033[91m    -- FAIL: Tape is too long or too short\033[0m")
                                             elif correct == 0:
-                                                print(f"\033[92m    -- OK: Tape fine\033[0m")
+                                                logging.info(f"\033[92m    -- OK: Tape fine\033[0m")
                                         except (ValueError, IndexError):
-                                            print(f"\033[91mCould not determine tape index from ROI name: {roi_name}\033[0m")
+                                            logging.error(f"\033[91mCould not determine tape index from ROI name: {roi_name}\033[0m")
                                 else:
-                                    print(f"\033[91mFAIL: Tape NOT detected in {roi_name}\033[0m")
+                                    logging.warning(f"\033[91mFAIL: Tape NOT detected in {roi_name}\033[0m")
                                     
                             elif roi_name.startswith("LABEL"):
                                 if 0 in detected_classes:
-                                    print(f"\033[92mOK: Label detected in {roi_name}\033[0m")
+                                    logging.info(f"\033[92mOK: Label detected in {roi_name}\033[0m")
                                 else:
-                                    print(f"\033[91mFAIL: Label NOT detected in {roi_name}\033[0m")
+                                    logging.warning(f"\033[91mFAIL: Label NOT detected in {roi_name}\033[0m")
                     else:
-                        print(f"Warning: ROI {roi_name} from Zone {zone_number} is empty or invalid.")
+                        logging.warning(f"Warning: ROI {roi_name} from Zone {zone_number} is empty or invalid.")
+
+                if zone_number == 1:
+                    new_rois = yolo_roi_mapper.get_images(workspace, annotations, roi_data_z1)
+                else:
+                    new_rois = yolo_roi_mapper.get_images(workspace, annotations, roi_data_z2)
+                for roi_name, roi_image in new_rois.items():
+                    cv2.imshow(f"New ROI {roi_name}", roi_image)
+
             else:
-                print(f"Warning: Workspace for Zone {zone_number} could not be extracted.")
+                logging.warning(f"Warning: Workspace for Zone {zone_number} could not be extracted.")
 
         cv2.waitKey(0)
         cv2.destroyAllWindows()
