@@ -7,6 +7,8 @@ import logging
 
 from utils.roi_cropper import ROICropper
 
+RELATIVE_HALF_SIZE = 0.016
+
 class YOLOROIMapper:
 
     def __init__(self, class_names=["label", "tape"]):
@@ -37,6 +39,7 @@ class YOLOROIMapper:
             return None
 
     def get_tape_roi_coordinates(self, positions_data, tape_id, original_size):
+        """Get tape ROI coordinates - supports both rectangle and center-based formats"""
         if not positions_data or "tapes" not in positions_data:
             self.logger.error("No tapes data found in JSON")
             return None, None
@@ -55,16 +58,36 @@ class YOLOROIMapper:
 
         orig_w, orig_h = original_size
 
-        start_x_px = int(target_tape["start"]["x"] * orig_w)
-        start_y_px = int(target_tape["start"]["y"] * orig_h)
-        end_x_px = int(target_tape["end"]["x"] * orig_w)
-        end_y_px = int(target_tape["end"]["y"] * orig_h)
+        # Check if it's center-based (square) or rectangle format
+        if "center" in target_tape and "relative_half_size" in target_tape:
+            # Center-based square format
+            center_x_px = int(target_tape["center"]["x"] * orig_w)
+            center_y_px = int(target_tape["center"]["y"] * orig_h)
+            
+            reference_dim = min(orig_w, orig_h)
+            half_size_px = int(target_tape["relative_half_size"] * reference_dim)
+            
+            roi_x = center_x_px - half_size_px
+            roi_y = center_y_px - half_size_px
+            roi_w = 2 * half_size_px
+            roi_h = 2 * half_size_px
+            
+        elif "start" in target_tape and "end" in target_tape:
+            # Rectangle format
+            start_x_px = int(target_tape["start"]["x"] * orig_w)
+            start_y_px = int(target_tape["start"]["y"] * orig_h)
+            end_x_px = int(target_tape["end"]["x"] * orig_w)
+            end_y_px = int(target_tape["end"]["y"] * orig_h)
 
-        roi_x = min(start_x_px, end_x_px)
-        roi_y = min(start_y_px, end_y_px)
-        roi_w = abs(end_x_px - start_x_px)
-        roi_h = abs(end_y_px - start_y_px)
+            roi_x = min(start_x_px, end_x_px)
+            roi_y = min(start_y_px, end_y_px)
+            roi_w = abs(end_x_px - start_x_px)
+            roi_h = abs(end_y_px - start_y_px)
+        else:
+            self.logger.error(f"Tape {tape_id} has invalid format")
+            return None, None
 
+        # Add padding
         padding = 10
         roi_x = max(0, roi_x - padding)
         roi_y = max(0, roi_y - padding)
@@ -105,6 +128,8 @@ class YOLOROIMapper:
         original_size,
         tape_id,
     ):
+        """Map ROI annotations to original image coordinates in square (center-based) format
+        The right border of the square will be at the center of the detected object"""
         if roi_position is None or roi_position[0] is None:
             self.logger.warning("Invalid ROI position")
             return []
@@ -117,34 +142,29 @@ class YOLOROIMapper:
         for ann in roi_annotations:
             class_id, x_center_norm, y_center_norm, width_norm, height_norm = ann
 
+            # Convert normalized ROI coordinates to pixels within ROI
             x_center_roi_px = x_center_norm * roi_w
             y_center_roi_px = y_center_norm * roi_h
 
+            # Convert to original image pixel coordinates
             x_center_orig_px = roi_x + x_center_roi_px
             y_center_orig_px = roi_y + y_center_roi_px
 
+            # Normalize to original image dimensions
             x_center_orig_norm = x_center_orig_px / orig_w
             y_center_orig_norm = y_center_orig_px / orig_h
 
-            new_roi_width = 0.032
-            new_roi_height = 0.04266
-
-            new_roi_end_x = x_center_orig_norm
-            new_roi_start_x = new_roi_end_x - new_roi_width
-
-            new_roi_start_y = y_center_orig_norm - new_roi_height / 2
-            new_roi_end_y = y_center_orig_norm + new_roi_height / 2
+            square_center_x = x_center_orig_norm - RELATIVE_HALF_SIZE
+            
+            square_center_y = y_center_orig_norm
 
             roi = {
                 "id": tape_id,
-                "start": {
-                    "x": new_roi_start_x,
-                    "y": new_roi_start_y,
+                "center": {
+                    "x": square_center_x,
+                    "y": square_center_y,
                 },
-                "end": {
-                    "x": new_roi_end_x,
-                    "y": new_roi_end_y,
-                },
+                "relative_half_size": RELATIVE_HALF_SIZE
             }
 
             mapped_rois.append(roi)
@@ -202,20 +222,46 @@ class YOLOROIMapper:
         return {"orientation": all_rois}
 
     def visualize_rois_on_image(self, original_img, result_json, positions_json_path, roi_annotations=None):
+        """Visualize ROIs - supports both square and rectangle formats"""
         original_size = (original_img.shape[1], original_img.shape[0])
         orig_w, orig_h = original_size
 
+        # Draw tape ROIs from positions data
         positions_data = self.load_positions_json(positions_json_path)
         if positions_data and 'tapes' in positions_data:
             for tape in positions_data['tapes']:
-                start_x_px = int(tape['start']['x'] * orig_w)
-                start_y_px = int(tape['start']['y'] * orig_h)
-                end_x_px = int(tape['end']['x'] * orig_w)
-                end_y_px = int(tape['end']['y'] * orig_h)
+                # Check format and draw accordingly
+                if 'center' in tape and 'relative_half_size' in tape:
+                    # Square format
+                    center_x_px = int(tape['center']['x'] * orig_w)
+                    center_y_px = int(tape['center']['y'] * orig_h)
+                    
+                    reference_dim = min(orig_w, orig_h)
+                    half_size_px = int(tape['relative_half_size'] * reference_dim)
+                    
+                    start_x_px = center_x_px - half_size_px
+                    start_y_px = center_y_px - half_size_px
+                    end_x_px = center_x_px + half_size_px
+                    end_y_px = center_y_px + half_size_px
+                    
+                    # Draw center point
+                    cv2.circle(original_img, (center_x_px, center_y_px), 5, (255, 0, 0), -1)
+                    
+                elif 'start' in tape and 'end' in tape:
+                    # Rectangle format
+                    start_x_px = int(tape['start']['x'] * orig_w)
+                    start_y_px = int(tape['start']['y'] * orig_h)
+                    end_x_px = int(tape['end']['x'] * orig_w)
+                    end_y_px = int(tape['end']['y'] * orig_h)
+                else:
+                    continue
+                
                 cv2.rectangle(original_img, (start_x_px, start_y_px), (end_x_px, end_y_px), (255, 0, 0), 2)
-                label = f"ID: {tape.get('id', 'N/A')}"
-                cv2.putText(original_img, label, (start_x_px, start_y_px - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255,0,0), 2)
+                label = f"Tape ID: {tape.get('id', 'N/A')}"
+                cv2.putText(original_img, label, (start_x_px, start_y_px - 10), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
 
+        # Draw YOLO detections on ROIs
         if roi_annotations:
             for tape_id, annotations in roi_annotations.items():
                 if not annotations:
@@ -246,10 +292,14 @@ class YOLOROIMapper:
                     end_y = y_center_orig_px + height_roi_px // 2
 
                     cv2.rectangle(original_img, (start_x, start_y), (end_x, end_y), (0, 255, 0), 2)
+                    
+                    # Draw vertical line at detection center
+                    cv2.line(original_img, (x_center_orig_px, start_y), 
+                            (x_center_orig_px, end_y), (0, 255, 255), 2)
 
-
+        # Draw final orientation ROIs (square format)
         if "orientation" not in result_json or not result_json["orientation"]:
-            self.logger.info("No ROIs to visualize.")
+            self.logger.info("No orientation ROIs to visualize.")
             plt.figure(figsize=(15, 15))
             plt.imshow(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
             plt.title("ROIs on Original Image")
@@ -257,18 +307,32 @@ class YOLOROIMapper:
             plt.show()
             return
 
+        reference_dim = min(orig_w, orig_h)
+        
         for roi in result_json["orientation"]:
-            start_x = int(roi["start"]["x"] * orig_w)
-            start_y = int(roi["start"]["y"] * orig_h)
-            end_x = int(roi["end"]["x"] * orig_w)
-            end_y = int(roi["end"]["y"] * orig_h)
+            # Square format with center and relative_half_size
+            center_x_px = int(roi["center"]["x"] * orig_w)
+            center_y_px = int(roi["center"]["y"] * orig_h)
+            half_size_px = int(roi["relative_half_size"] * reference_dim)
+            
+            start_x = center_x_px - half_size_px
+            start_y = center_y_px - half_size_px
+            end_x = center_x_px + half_size_px
+            end_y = center_y_px + half_size_px
 
             class_id = roi.get("id", 0) % len(self.colors)
             color = self.colors[class_id]
 
+            # Draw square ROI
             cv2.rectangle(original_img, (start_x, start_y), (end_x, end_y), color, 2)
+            
+            # Draw center point
+            cv2.circle(original_img, (center_x_px, center_y_px), 4, color, -1)
+            
+            # Draw vertical line at right edge (should align with detection center)
+            cv2.line(original_img, (end_x, start_y), (end_x, end_y), color, 3)
 
-            label = f"ID: {roi.get('id', 'N/A')}"
+            label = f"Orient ID: {roi.get('id', 'N/A')}"
             (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
             cv2.rectangle(
                 original_img, (start_x, start_y - h - 10), (start_x + w, start_y), color, -1
@@ -284,15 +348,19 @@ class YOLOROIMapper:
             )
 
         plt.figure(figsize=(15, 15))
-        plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        plt.imshow(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
         plt.title("ROIs on Original Image")
         plt.axis("off")
         plt.show()
 
     def get_images(self, workspace, roi_annotations, positions_data):
         new_rois_json = self.process_roi_mapping(workspace, roi_annotations, positions_data)
+        
+        # Check if there are any ROIs to process
+        if not new_rois_json.get("orientation"):
+            self.logger.info("No orientation ROIs found, skipping cropping")
+            return None
+        
         cropper = ROICropper(new_rois_json)
-
         new_rois = cropper.crop(workspace)
-
         return new_rois
