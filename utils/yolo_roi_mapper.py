@@ -7,7 +7,7 @@ import logging
 
 from utils.roi_cropper import ROICropper
 
-RELATIVE_HALF_SIZE = 0.016
+RELATIVE_HALF_SIZE = 0.052
 
 class YOLOROIMapper:
 
@@ -93,6 +93,7 @@ class YOLOROIMapper:
         roi_y = max(0, roi_y - padding)
         roi_w = min(orig_w - roi_x, roi_w + 2 * padding)
         roi_h = min(orig_h - roi_y, roi_h + 2 * padding)
+       
 
         self.logger.info(
             f"Tape {tape_id} ROI: position=({roi_x}, {roi_y}), size=({roi_w}x{roi_h})"
@@ -154,7 +155,7 @@ class YOLOROIMapper:
             x_center_orig_norm = x_center_orig_px / orig_w
             y_center_orig_norm = y_center_orig_px / orig_h
 
-            square_center_x = x_center_orig_norm - RELATIVE_HALF_SIZE
+            square_center_x = x_center_orig_norm - 0.016
             
             square_center_y = y_center_orig_norm
 

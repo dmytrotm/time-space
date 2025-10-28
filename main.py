@@ -18,12 +18,12 @@ if __name__ == "__main__":
 
     # Create instances of the tools
     cameras = ImageServer(
-        "dataset/Test_Case7/Z1_0_2.png",
-        "dataset/Test_Case7/Z2_0_2.png"
+        "dataset/1/Test_Case_7/2/Z1_0_2.png",
+        "dataset/2/Test_Case_7/2/Z2_0_2.png"
     )
     images = cameras.take_photos()
 
-    extractor = WorkspaceExtractor("configs/custom_markers.yaml")
+    #extractor = WorkspaceExtractor("configs/custom_markers.yaml")
     roi_cropper_z1 = ROICropper(roi_data_z1)
     roi_cropper_z2 = ROICropper(roi_data_z2)
     grounding_detector = GroundingWireDetector()
@@ -38,7 +38,7 @@ if __name__ == "__main__":
         for i, image in enumerate(images):
             zone_number = i + 1
             
-            workspace = extractor.extract_workspace(image)
+            workspace = image
             
             if workspace is not None:
                 # cv2.imshow(f"Workspace Zone {zone_number}", workspace)
