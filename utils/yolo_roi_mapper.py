@@ -363,5 +363,5 @@ class YOLOROIMapper:
             return None
         
         cropper = ROICropper(new_rois_json)
-        new_rois = cropper.crop(workspace)
-        return new_rois
+        new_rois_images = cropper.crop(workspace)
+        return new_rois_images, new_rois_json
