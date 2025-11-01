@@ -9,7 +9,7 @@ __pycache__
 idea
 venv
 output
-rois
+*rois*
 *discovery
 workspace
 project_output

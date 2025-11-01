@@ -6,7 +6,7 @@ from torchvision import transforms
 import cv2
 
 class WrongOrientation:
-    def __init__(self,model_path="models/resnet_model.pth"):
+    def __init__(self,model_path="models/wrong_orientation_detector.pth"):
         self.model =models.resnet18(weights=None)
 
         self.model.fc = nn.Sequential(
