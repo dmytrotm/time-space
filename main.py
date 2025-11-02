@@ -296,8 +296,8 @@ def run_inspection_cycle(
 if __name__ == "__main__":
     """Main entry point"""
 
-    DEFAULT_Z1_IMAGE_PATH = "dataset/Test_Case3/Z1_0_1.png"
-    DEFAULT_Z2_IMAGE_PATH = "dataset/Test_Case3/Z2_0_1.png"
+    DEFAULT_Z1_IMAGE_PATH = "Z1_0_1.png"
+    DEFAULT_Z2_IMAGE_PATH = "Z2_0_1.png"
 
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=LOG_DATE_FORMAT)
 
