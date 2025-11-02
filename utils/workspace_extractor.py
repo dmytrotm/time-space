@@ -86,7 +86,6 @@ class WorkspaceExtractor:
                 self.logger.error(f"Error detecting markers in dictionary {name}: {e}")
                 continue
         
-        self.logger.info(f"Found {len(all_found_markers)} markers in total")
         unique_markers = self.remove_duplicate_markers(all_found_markers)
         return unique_markers
     
@@ -108,9 +107,7 @@ class WorkspaceExtractor:
             else:
                 best_marker = max(group, key=lambda m: m['area'])
                 unique_markers.append(best_marker)
-                self.logger.info(f"Removed {len(group) - 1} duplicate(s) for marker ID {marker_id}")
         
-        self.logger.info(f"Found {len(unique_markers)} unique markers")
         return unique_markers
     
     def order_points(self, pts):
@@ -155,11 +152,9 @@ class WorkspaceExtractor:
             self.logger.error("Input image is None")
             return None
         
-        self.logger.info("Starting workspace extraction")
         found_markers = self.detect_markers(image)
         
         if not found_markers or len(found_markers) < 4:
-            self.logger.warning(f"Found only {len(found_markers)} unique markers, need at least 4")
             return None
         
         marker_centers = np.array([marker['center'] for marker in found_markers])
@@ -170,7 +165,6 @@ class WorkspaceExtractor:
             if len(hull) >= 4:
                 boundary_points = hull.reshape(-1, 2)[:4]
             else:
-                self.logger.warning("Convex hull has less than 4 points, falling back to extreme points method")
                 x_coords = marker_centers[:, 0]
                 y_coords = marker_centers[:, 1]
                 
@@ -182,16 +176,13 @@ class WorkspaceExtractor:
                 corner_indices = list(set([top_left_idx, top_right_idx, bottom_right_idx, bottom_left_idx]))
                 
                 if len(corner_indices) < 4:
-                    self.logger.warning("Found less than 4 unique corner indices, taking the 4 most extreme points")
                     distances_from_center = np.sqrt((marker_centers[:, 0] - np.mean(x_coords))**2 + 
                                                    (marker_centers[:, 1] - np.mean(y_coords))**2)
                     corner_indices = np.argsort(distances_from_center)[-4:]
                 
                 boundary_points = marker_centers[corner_indices[:4]]
             
-            self.logger.info("Applying perspective correction")
             corrected_image = self.four_point_transform(image, boundary_points)
-            self.logger.info("Workspace extraction successful")
             
             return corrected_image
             

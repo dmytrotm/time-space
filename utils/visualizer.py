@@ -1,17 +1,11 @@
 import cv2
 import numpy as np
+from utils.constants import GREEN, RED, ORANGE
 
 class Visualizer:
     """
     A class to handle visualization of ROIs and detections on an image.
     """
-    # BGR colors
-    GREEN = (0, 255, 0)
-    RED = (0, 0, 255)
-    ORANGE = (0, 165, 255)
-    BLUE = (255, 0, 0)
-    YELLOW = (0, 255, 255)
-    PURPLE = (255, 0, 255)
     
     def __init__(self, image):
         self.image = image.copy()
@@ -24,10 +18,15 @@ class Visualizer:
         :param label: The label for the bounding box.
         """
         x, y, w, h = box
-        cv2.rectangle(self.image, (x, y), (x + w, y + h), color, 2)
+        cv2.rectangle(self.image, (x, y), (x + w, y + h), color, 3)
         if label:
-            cv2.putText(self.image, label, (x, y - 10), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+            # Get text size to center it
+            (text_width, text_height), baseline = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, 2, 4)
+            text_x = x + (w - text_width) // 2
+            text_y = y + h + 50
+            cv2.putText(self.image, label, (text_x, text_y), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 2, color, 4)
     
     def draw_roi_rectangle(self, roi, color, label=""):
         """
@@ -48,11 +47,17 @@ class Visualizer:
         y1 = min(start_y, end_y)
         y2 = max(start_y, end_y)
         
-        cv2.rectangle(self.image, (x1, y1), (x2, y2), color, 2)
+        cv2.rectangle(self.image, (x1, y1), (x2, y2), color, 3)
         
         if label:
-            cv2.putText(self.image, label, (x1, y1 - 10), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+            # Get text size to center it
+            box_width = x2 - x1
+            (text_width, text_height), baseline = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, 2, 4)
+            text_x = x1 + (box_width - text_width) // 2
+            text_y = y2 + 50
+            cv2.putText(self.image, label, (text_x, text_y), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 2, color, 4)
     
     def draw_roi_center(self, roi, color, label=""):
         """
@@ -79,14 +84,17 @@ class Visualizer:
         y2 = center_y + half_size_pixels
         
         # Draw rectangle
-        cv2.rectangle(self.image, (x1, y1), (x2, y2), color, 2)
-        
-        # Draw center point
-        cv2.circle(self.image, (center_x, center_y), 4, color, -1)
+        cv2.rectangle(self.image, (x1, y1), (x2, y2), color, 3)
         
         if label:
-            cv2.putText(self.image, label, (x1, y1 - 10), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+            # Get text size to center it
+            box_width = x2 - x1
+            (text_width, text_height), baseline = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, 2, 4)
+            text_x = x1 + (box_width - text_width) // 2
+            text_y = y2 + 50
+            cv2.putText(self.image, label, (text_x, text_y), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 2, color, 4)
     
     def draw_roi(self, roi, color, label=""):
         """
@@ -122,21 +130,18 @@ class Visualizer:
         """
         # Default colors for different categories
         category_colors = {
-            0: self.GREEN,
-            1: self.RED,
-            2: self.BLUE,
-            3: self.ORANGE,
-            4: self.YELLOW,
-            5: self.PURPLE,
+            0: GREEN,
+            1: RED,
+            2: ORANGE,
         }
         
         if color is None and not color_by_category:
-            color = self.GREEN
+            color = GREEN
         
         for idx, (category_name, roi_list) in enumerate(roi_cropper.roi_objects.items()):
             # Choose color
             if color_by_category:
-                current_color = category_colors.get(idx % len(category_colors), self.GREEN)
+                current_color = category_colors.get(idx % len(category_colors), GREEN)
             else:
                 current_color = color
             
@@ -172,7 +177,7 @@ class Visualizer:
             
             self.draw_roi(roi, color, label)
     
-    def add_legend(self, position=(10, 30), font_scale=0.7, thickness=2):
+    def add_legend(self, position=(10, 30), font_scale=1.0, thickness=5):
         """
         Adds a legend explaining the ROI type indicators.
         :param position: Starting position (x, y) for the legend.
@@ -180,16 +185,16 @@ class Visualizer:
         :param thickness: Thickness of the text.
         """
         x, y = position
-        line_height = 30
+        line_height = 40
         
         cv2.putText(self.image, "ROI Types:", (x, y), 
-                   cv2.FONT_HERSHEY_SIMPLEX, font_scale, self.GREEN, thickness)
+                   cv2.FONT_HERSHEY_SIMPLEX, font_scale, GREEN, thickness)
         
         cv2.putText(self.image, "  Square (center-based)", (x, y + line_height), 
-                   cv2.FONT_HERSHEY_SIMPLEX, font_scale - 0.1, self.GREEN, thickness - 1)
+                   cv2.FONT_HERSHEY_SIMPLEX, font_scale - 0.1, GREEN, thickness - 1)
         
         cv2.putText(self.image, "  Rectangle (start-end)", (x, y + line_height * 2), 
-                   cv2.FONT_HERSHEY_SIMPLEX, font_scale - 0.1, self.GREEN, thickness - 1)
+                   cv2.FONT_HERSHEY_SIMPLEX, font_scale - 0.1, GREEN, thickness - 1)
     
     def get_image(self):
         """

@@ -4,5 +4,14 @@ from utils.yolo_roi_mapper import YOLOROIMapper
 from utils.image_server import ImageServer
 from utils.preprocess import Preprocessor
 from utils.visualizer import Visualizer
+from utils.ui_manager import UIManager
 
-__all__ = ["ROICropper", "WorkspaceExtractor", "YOLOROIMapper", "ImageServer", "Preprocessor", "Visualizer"]
+__all__ = [
+    "ROICropper", 
+    "WorkspaceExtractor", 
+    "YOLOROIMapper", 
+    "ImageServer", 
+    "Preprocessor", 
+    "Visualizer", 
+    "UIManager",
+]

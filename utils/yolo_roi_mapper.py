@@ -6,6 +6,7 @@ import json
 import logging
 
 from utils.roi_cropper import ROICropper
+from utils.constants import RELATIVE_HALF_SIZE_RASNET as RELATIVE_HALF_SIZE
 
 RELATIVE_HALF_SIZE = 0.052
 
@@ -34,9 +35,6 @@ class YOLOROIMapper:
         except FileNotFoundError:
             self.logger.error(f"JSON file {json_path} not found")
             return None
-        except json.JSONDecodeError:
-            self.logger.error(f"Invalid JSON format in {json_path}")
-            return None
 
     def get_tape_roi_coordinates(self, positions_data, tape_id, original_size):
         """Get tape ROI coordinates - supports both rectangle and center-based formats"""
@@ -51,9 +49,6 @@ class YOLOROIMapper:
                 break
 
         if target_tape is None:
-            self.logger.error(f"Tape with ID {tape_id} not found")
-            available_ids = [tape["id"] for tape in positions_data["tapes"]]
-            self.logger.info(f"Available tape IDs: {available_ids}")
             return None, None
 
         orig_w, orig_h = original_size
@@ -83,9 +78,6 @@ class YOLOROIMapper:
             roi_y = min(start_y_px, end_y_px)
             roi_w = abs(end_x_px - start_x_px)
             roi_h = abs(end_y_px - start_y_px)
-        else:
-            self.logger.error(f"Tape {tape_id} has invalid format")
-            return None, None
 
         # Add padding
         padding = 10
@@ -93,11 +85,6 @@ class YOLOROIMapper:
         roi_y = max(0, roi_y - padding)
         roi_w = min(orig_w - roi_x, roi_w + 2 * padding)
         roi_h = min(orig_h - roi_y, roi_h + 2 * padding)
-       
-
-        self.logger.info(
-            f"Tape {tape_id} ROI: position=({roi_x}, {roi_y}), size=({roi_w}x{roi_h})"
-        )
 
         return (roi_x, roi_y), (roi_w, roi_h)
 
@@ -186,7 +173,6 @@ class YOLOROIMapper:
             original_img.shape[1],
             original_img.shape[0],
         )
-        self.logger.info(f"Original image size: {original_size}")
 
         if positions_data is None:
             return {"orientation": []}
@@ -194,7 +180,6 @@ class YOLOROIMapper:
         all_rois = []
 
         for tape_id, annotations in roi_annotations.items():
-            self.logger.info(f"\n--- Processing tape {tape_id} ---")
 
             roi_position, roi_size = self.get_tape_roi_coordinates(
                 positions_data, tape_id, original_size
@@ -208,17 +193,12 @@ class YOLOROIMapper:
                 self.logger.info(f"No annotations provided for tape {tape_id}")
                 continue
 
-            self.logger.info(f"Processing {len(annotations)} annotations for tape {tape_id}")
-
             mapped_rois = self.map_roi_annotations_to_original(
                 annotations, roi_position, roi_size, original_size, tape_id
             )
 
             if mapped_rois:
                 all_rois.extend(mapped_rois)
-
-        self.logger.info(f"\n=== PROCESSING COMPLETE ===")
-        self.logger.info(f"Total ROI structures created: {len(all_rois)}")
 
         return {"orientation": all_rois}
 
