@@ -4,8 +4,8 @@ from utils import (
     ROICropper,
     Visualizer,
     YOLOROIMapper,
+    UIManager
 )
-from utils.ui_manager import UIManager
 from utils.constants import (
     WINDOW_WIDTH,
     WINDOW_HEIGHT,
