@@ -67,7 +67,7 @@ python main.py
 
 Linux and MacOS
 ```bash
-python3 main.py
+sudo $(which python3) main.py
 ```
 
 The script will:

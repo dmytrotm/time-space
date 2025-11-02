@@ -48,7 +48,7 @@ CONFIG_POSITIONS_PATH = "configs/positions.json"
 WORKSPACE_EXTRACTOR_CONFIG = "configs/custom_markers.yaml"
 
 # Inspection Window Constants
-NAV_BUTTON_WIDTH = 80
+NAV_BUTTON_WIDTH = 60
 NAV_TEXT_OFFSET_Y = 30
 NAV_ZONE_INFO_OFFSET_Y = 10
 
