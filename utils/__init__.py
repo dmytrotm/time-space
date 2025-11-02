@@ -7,11 +7,11 @@ from utils.visualizer import Visualizer
 from utils.ui_manager import UIManager
 
 __all__ = [
-    "ROICropper", 
-    "WorkspaceExtractor", 
-    "YOLOROIMapper", 
-    "ImageServer", 
-    "Preprocessor", 
-    "Visualizer", 
+    "ROICropper",
+    "WorkspaceExtractor",
+    "YOLOROIMapper",
+    "ImageServer",
+    "Preprocessor",
+    "Visualizer",
     "UIManager",
 ]

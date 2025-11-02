@@ -4,7 +4,7 @@ from utils import (
     ROICropper,
     Visualizer,
     YOLOROIMapper,
-    UIManager
+    UIManager,
 )
 from utils.constants import (
     WINDOW_WIDTH,
@@ -23,7 +23,7 @@ from utils.constants import (
     LOG_DATE_FORMAT,
     LOG_FORMAT,
     WORKSPACE_EXTRACTOR_CONFIG,
-    KEY_MAPPING
+    KEY_MAPPING,
 )
 from detectors import (
     GroundingWireDetector,
@@ -34,6 +34,7 @@ from detectors import (
 import cv2
 import json
 import logging
+
 
 def load_configurations():
     """Load all configuration files"""

@@ -3,6 +3,7 @@ import os
 
 # Needs to be implemented, currenctly we just serve the photos from dataset
 
+
 class ImageServer:
     def __init__(self, *image_paths):
         """

@@ -1,24 +1,24 @@
 %YAML:1.0
 ---
 cust_dictionary4:
-   nmarkers: 1
-   markersize: 4
-   maxCorrectionBits: 1
-   marker_0: "1001100011110010"
+  nmarkers: 1
+  markersize: 4
+  maxCorrectionBits: 1
+  marker_0: "1001100011110010"
 cust_dictionary5:
-   nmarkers: 1
-   markersize: 5
-   maxCorrectionBits: 1
-   marker_0: "1000010000010011000010111"
+  nmarkers: 1
+  markersize: 5
+  maxCorrectionBits: 1
+  marker_0: "1000010000010011000010111"
 cust_dictionary6:
-   nmarkers: 3
-   markersize: 6
-   maxCorrectionBits: 1
-   marker_0: "001100101000110010110101110000011110"
-   marker_1: "100110100011000001000111110011011110"
-   marker_2: "011001001101011001011100110010111101"
+  nmarkers: 3
+  markersize: 6
+  maxCorrectionBits: 1
+  marker_0: "001100101000110010110101110000011110"
+  marker_1: "100110100011000001000111110011011110"
+  marker_2: "011001001101011001011100110010111101"
 cust_dictionary8:
-   nmarkers: 1
-   markersize: 8
-   maxCorrectionBits: 1
-   marker_0: "1111110010100011110111011100100011010100011010000011101100000001"
+  nmarkers: 1
+  markersize: 8
+  maxCorrectionBits: 1
+  marker_0: "1111110010100011110111011100100011010100011010000011101100000001"
