@@ -277,12 +277,12 @@ def run_inspection_cycle(
 
         if action == "exit":
             logging.info("Exit requested during inspection.")
-            cv2.destroyWindow(ui_manager.visualization_window)
+            ui_manager.cleanup()
             ui_manager.show_main_instructions()
             return "exit"
         elif action == "finish":
             logging.info("Inspection cycle completed.")
-            cv2.destroyWindow(ui_manager.visualization_window)
+            ui_manager.cleanup()
             ui_manager.show_main_instructions()
             return "continue"
         elif action == "next":
@@ -361,6 +361,6 @@ if __name__ == "__main__":
     finally:
         # Cleanup
         logging.info("Cleaning up...")
-        cv2.destroyAllWindows()
+        ui_manager.cleanup()
         logging.info("Shutdown complete")
         logging.info(LOG_SEPARATOR)

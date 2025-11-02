@@ -411,3 +411,12 @@ class UIManager:
         )
         display_to_framebuffer(black_screen, self.fb_device)
         print("Instruction window cleared")
+
+    def cleanup(self):
+        """Clean up UI resources"""
+        # Clear framebuffer to black
+        black_screen = np.zeros(
+            (self.window_height, self.window_width, 3), dtype=np.uint8
+        )
+        display_to_framebuffer(black_screen, self.fb_device)
+        print("UI cleanup completed")
