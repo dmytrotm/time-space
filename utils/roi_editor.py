@@ -4,6 +4,7 @@ import json
 import os
 import argparse
 
+
 class InteractiveROIEditor:
     def __init__(self, image_path, roi_file="rois.json"):
         self.image_path = image_path
@@ -19,7 +20,7 @@ class InteractiveROIEditor:
         # Colors
         self.roi_color = (0, 255, 0)  # Green for ROI boxes
         self.text_color = (255, 255, 255)  # White for text
-        self.preview_color = (255, 255, 0) # Yellow for preview
+        self.preview_color = (255, 255, 0)  # Yellow for preview
 
         self.load_image()
         self.load_rois()
@@ -45,11 +46,13 @@ class InteractiveROIEditor:
         """Load existing ROIs from JSON file"""
         if os.path.exists(self.roi_file):
             try:
-                with open(self.roi_file, 'r') as f:
+                with open(self.roi_file, "r") as f:
                     data = json.load(f)
-                    self.rois = data.get('rois', [])
+                    self.rois = data.get("rois", [])
                     if self.rois:
-                        self.roi_counter = max(roi.get('id', 0) for roi in self.rois) + 1
+                        self.roi_counter = (
+                            max(roi.get("id", 0) for roi in self.rois) + 1
+                        )
                     else:
                         self.roi_counter = 1
                 print(f"Loaded {len(self.rois)} existing ROIs from {self.roi_file}")
@@ -62,11 +65,11 @@ class InteractiveROIEditor:
         data = {
             "image_path": self.image_path,
             "image_size": {"width": self.width, "height": self.height},
-            "rois": self.rois
+            "rois": self.rois,
         }
 
         try:
-            with open(self.roi_file, 'w') as f:
+            with open(self.roi_file, "w") as f:
                 json.dump(data, f, indent=2)
             print(f"Saved {len(self.rois)} ROIs to {self.roi_file}")
         except Exception as e:
@@ -96,7 +99,7 @@ class InteractiveROIEditor:
         roi = {
             "id": self.roi_counter,
             "start": {"x": rel_start_x, "y": rel_start_y},
-            "end": {"x": rel_end_x, "y": rel_end_y}
+            "end": {"x": rel_end_x, "y": rel_end_y},
         }
 
         self.rois.append(roi)
@@ -108,12 +111,27 @@ class InteractiveROIEditor:
         self.display_image = self.original_image.copy()
 
         for roi in self.rois:
-            start_x, start_y = self.relative_to_pixel(roi["start"]["x"], roi["start"]["y"])
+            start_x, start_y = self.relative_to_pixel(
+                roi["start"]["x"], roi["start"]["y"]
+            )
             end_x, end_y = self.relative_to_pixel(roi["end"]["x"], roi["end"]["y"])
 
-            cv2.rectangle(self.display_image, (start_x, start_y), (end_x, end_y), self.roi_color, 2)
-            cv2.putText(self.display_image, f"ROI {roi['id']}",
-                       (start_x, start_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, self.text_color, 1)
+            cv2.rectangle(
+                self.display_image,
+                (start_x, start_y),
+                (end_x, end_y),
+                self.roi_color,
+                2,
+            )
+            cv2.putText(
+                self.display_image,
+                f"ROI {roi['id']}",
+                (start_x, start_y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                self.text_color,
+                1,
+            )
 
     def mouse_callback(self, event, x, y, flags, param):
         """Handle mouse events"""
@@ -126,8 +144,10 @@ class InteractiveROIEditor:
             if self.drawing:
                 self.end_point = (x, y)
                 temp_image = self.display_image.copy()
-                cv2.rectangle(temp_image, self.start_point, self.end_point, self.preview_color, 2)
-                cv2.imshow('Interactive ROI Editor', temp_image)
+                cv2.rectangle(
+                    temp_image, self.start_point, self.end_point, self.preview_color, 2
+                )
+                cv2.imshow("Interactive ROI Editor", temp_image)
 
         elif event == cv2.EVENT_LBUTTONUP:
             if self.drawing:
@@ -135,30 +155,29 @@ class InteractiveROIEditor:
                 self.end_point = (x, y)
                 self.add_roi(self.start_point, self.end_point)
                 self.draw_rois()
-                cv2.imshow('Interactive ROI Editor', self.display_image)
-
+                cv2.imshow("Interactive ROI Editor", self.display_image)
 
     def run(self):
         """Main loop"""
-        cv2.namedWindow('Interactive ROI Editor', cv2.WINDOW_NORMAL)
-        cv2.setMouseCallback('Interactive ROI Editor', self.mouse_callback)
+        cv2.namedWindow("Interactive ROI Editor", cv2.WINDOW_NORMAL)
+        cv2.setMouseCallback("Interactive ROI Editor", self.mouse_callback)
 
         self.draw_rois()
 
         while True:
-            cv2.imshow('Interactive ROI Editor', self.display_image)
+            cv2.imshow("Interactive ROI Editor", self.display_image)
             key = cv2.waitKey(1) & 0xFF
 
-            if key == ord('q') or key == 27:  # Q or ESC
+            if key == ord("q") or key == 27:  # Q or ESC
                 break
-            elif key == ord('s'):  # Save
+            elif key == ord("s"):  # Save
                 self.save_rois()
-            elif key == ord('c'):  # Clear all ROIs
+            elif key == ord("c"):  # Clear all ROIs
                 self.rois = []
                 self.roi_counter = 1
                 self.draw_rois()
                 print("Cleared all ROIs")
-            elif key == ord('d'):  # Delete last ROI
+            elif key == ord("d"):  # Delete last ROI
                 if self.rois:
                     deleted_roi = self.rois.pop()
                     print(f"Deleted ROI {deleted_roi['id']}")
@@ -166,10 +185,15 @@ class InteractiveROIEditor:
 
         cv2.destroyAllWindows()
 
+
 def main():
-    parser = argparse.ArgumentParser(description='Interactive ROI Editor for rectangular ROIs.')
-    parser.add_argument('--image', required=True, help='Path to the image file')
-    parser.add_argument('--rois', default='rois_interactive.json', help='Path to ROIs JSON file')
+    parser = argparse.ArgumentParser(
+        description="Interactive ROI Editor for rectangular ROIs."
+    )
+    parser.add_argument("--image", required=True, help="Path to the image file")
+    parser.add_argument(
+        "--rois", default="rois_interactive.json", help="Path to ROIs JSON file"
+    )
 
     args = parser.parse_args()
 
@@ -182,6 +206,7 @@ def main():
         editor.run()
     except Exception as e:
         print(f"Error: {e}")
+
 
 if __name__ == "__main__":
     # To run from command line:
