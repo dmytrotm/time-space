@@ -2,33 +2,16 @@ import cv2
 import numpy as np
 import threading
 from utils.constants import (
-    CONTENT_WIDTH,
-    CONTENT_HEIGHT,
-    TITLE_OFFSET_Y,
-    LINE_HEIGHT,
     BUTTON_HEIGHT,
     BUTTON_WIDTH,
-    BUTTON_OFFSET_Y,
-    TITLE_LINE_OFFSET,
-    BUTTON_START_OFFSET,
-    CONTENT_PADDING,
-    DIVIDER_WIDTH,
-    DARK_GRAY,
-    YELLOW,
-    LIGHTER_GRAY,
+    BUTTON_SPACING,
     GRAY,
     GREEN,
-    ORANGE,
     FONT,
-    TITLE_FONT_SCALE,
     FONT_THICKNESS,
     LOADING_TEXT,
-    NAV_BUTTON_WIDTH,
-    GRAY,
     WHITE,
-    FONT,
     FONT_SCALE,
-    FONT_THICKNESS,
     NAV_ZONE_INFO_OFFSET_Y,
     INTERPOLATION_METHOD,
 )
@@ -59,7 +42,7 @@ class UIManager:
             self.window_created = True
         cv2.setMouseCallback(self.instruction_window, self.mouse_callback)
 
-    def mouse_callback(self, event, x, y, flags, param):
+    def mouse_callback(self, event, x, y):
         if event == cv2.EVENT_LBUTTONDOWN:
             with self.action_lock:
                 for x_b, y_b, w_b, h_b, action in self.buttons:
@@ -74,73 +57,35 @@ class UIManager:
         self.buttons = []
         img = np.zeros((self.window_height, self.window_width, 3), dtype=np.uint8)
 
-        content_x = (self.window_width - CONTENT_WIDTH) // 2
-        content_y = (self.window_height - CONTENT_HEIGHT) // 2
-
-        cv2.rectangle(
-            img,
-            (content_x, content_y),
-            (content_x + CONTENT_WIDTH, content_y + CONTENT_HEIGHT),
-            DARK_GRAY,
-            -1,
-        )
-        cv2.rectangle(
-            img,
-            (content_x, content_y),
-            (content_x + CONTENT_WIDTH, content_y + CONTENT_HEIGHT),
-            YELLOW,
-            FONT_THICKNESS // 2,
-        )
-
         center_x = self.window_width // 2
-        start_y = content_y + TITLE_OFFSET_Y
-
-        title = "INSPECTION CONTROLS"
-        title_size = cv2.getTextSize(title, FONT, TITLE_FONT_SCALE, FONT_THICKNESS)[0]
-        title_x = center_x - title_size[0] // 2
-        cv2.putText(
-            img,
-            title,
-            (title_x, start_y),
-            FONT,
-            TITLE_FONT_SCALE,
-            YELLOW,
-            FONT_THICKNESS,
-            cv2.LINE_AA,
-        )
-
-        line_y = start_y + TITLE_LINE_OFFSET
-        cv2.line(
-            img,
-            (content_x + CONTENT_PADDING, line_y),
-            (content_x + CONTENT_WIDTH - CONTENT_PADDING, line_y),
-            LIGHTER_GRAY,
-            FONT_THICKNESS // 2,
-        )
+        center_y = self.window_height // 2
 
         instructions = [
-            ("ENTER", "Start new inspection", "start", GREEN),
-            ("ESC", "Exit program", "exit", ORANGE),
+            ("ENTER", "Start New Inspection", "start", GREEN),
         ]
+        num_instructions = len(instructions)
 
-        y_pos = start_y + BUTTON_START_OFFSET
+        total_instructions_height = (num_instructions * BUTTON_HEIGHT) + (
+            (num_instructions - 1) * BUTTON_SPACING
+        )
+
+        y_pos = center_y - total_instructions_height // 2
 
         for idx, (key_text, desc_text, action, color) in enumerate(instructions):
             button_x = center_x - BUTTON_WIDTH // 2
-            button_y_top = y_pos - BUTTON_HEIGHT + BUTTON_OFFSET_Y
-            button_y_bottom = y_pos + BUTTON_OFFSET_Y
+            button_y_top = y_pos
 
             cv2.rectangle(
                 img,
                 (button_x, button_y_top),
-                (button_x + BUTTON_WIDTH, button_y_bottom),
+                (button_x + BUTTON_WIDTH, button_y_top + BUTTON_HEIGHT),
                 GRAY,
                 -1,
             )
             cv2.rectangle(
                 img,
                 (button_x, button_y_top),
-                (button_x + BUTTON_WIDTH, button_y_bottom),
+                (button_x + BUTTON_WIDTH, button_y_top + BUTTON_HEIGHT),
                 color,
                 FONT_THICKNESS // 2,
             )
@@ -166,17 +111,7 @@ class UIManager:
                 cv2.LINE_AA,
             )
 
-            y_pos += LINE_HEIGHT
-
-            if idx < len(instructions) - 1:
-                divider_y = y_pos - LINE_HEIGHT + BUTTON_HEIGHT + 20
-                cv2.line(
-                    img,
-                    (center_x - DIVIDER_WIDTH, divider_y),
-                    (center_x + DIVIDER_WIDTH, divider_y),
-                    LIGHTER_GRAY,
-                    FONT_THICKNESS // 2,
-                )
+            y_pos += BUTTON_HEIGHT + BUTTON_SPACING
 
         cv2.imshow(self.instruction_window, img)
 
@@ -209,7 +144,7 @@ class UIManager:
         )
         cv2.setMouseCallback(self.visualization_window, self.mouse_callback)
 
-        available_width = self.window_width - 2 * NAV_BUTTON_WIDTH
+        available_width = self.window_width
         img_height, img_width = zone_img.shape[:2]
 
         scale = min(available_width / img_width, self.window_height / img_height)
@@ -222,51 +157,11 @@ class UIManager:
 
         canvas = np.zeros((self.window_height, self.window_width, 3), dtype=np.uint8)
 
-        x_offset = NAV_BUTTON_WIDTH + (available_width - new_width) // 2
+        x_offset = (self.window_width - new_width) // 2
         y_offset = (self.window_height - new_height) // 2
 
         canvas[y_offset : y_offset + new_height, x_offset : x_offset + new_width] = (
             resized_img
-        )
-
-        cv2.rectangle(canvas, (0, 0), (NAV_BUTTON_WIDTH, self.window_height), GRAY, -1)
-        prev_text = "<"
-        prev_text_size = cv2.getTextSize(prev_text, FONT, FONT_SCALE, FONT_THICKNESS)[0]
-        prev_text_x = (NAV_BUTTON_WIDTH - prev_text_size[0]) // 2
-        prev_text_y = self.window_height // 2 + prev_text_size[1] // 2
-        cv2.putText(
-            canvas,
-            prev_text,
-            (prev_text_x, prev_text_y),
-            FONT,
-            FONT_SCALE,
-            WHITE,
-            FONT_THICKNESS,
-        )
-
-        cv2.rectangle(
-            canvas,
-            (self.window_width - NAV_BUTTON_WIDTH, 0),
-            (self.window_width, self.window_height),
-            GRAY,
-            -1,
-        )
-        next_text = ">"
-        next_text_size = cv2.getTextSize(next_text, FONT, FONT_SCALE, FONT_THICKNESS)[0]
-        next_text_x = (
-            self.window_width
-            - NAV_BUTTON_WIDTH
-            + (NAV_BUTTON_WIDTH - next_text_size[0]) // 2
-        )
-        next_text_y = self.window_height // 2 + next_text_size[1] // 2
-        cv2.putText(
-            canvas,
-            next_text,
-            (next_text_x, next_text_y),
-            FONT,
-            FONT_SCALE,
-            WHITE,
-            FONT_THICKNESS,
         )
 
         zone_info = f"Zone {zone_num}/{total_zones}"

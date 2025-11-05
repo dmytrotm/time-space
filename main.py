@@ -34,6 +34,7 @@ from detectors import (
 import cv2
 import json
 import logging
+import time
 
 
 def load_configurations():
@@ -68,9 +69,14 @@ def find_roi_object(roi_cropper, category, roi_id):
     return None
 
 
-def process_grounding_roi(roi_image, roi_object, grounding_detector, visualizer):
+def process_grounding_roi(
+    roi_image, roi_object, grounding_detector, visualizer, timings
+):
     """Process grounding wire detection"""
-    if not grounding_detector.is_present(roi_image):
+    start_time = time.time()
+    is_present = grounding_detector.is_present(roi_image)
+    timings["grounding_detector_time"] += time.time() - start_time
+    if not is_present:
         visualizer.draw_roi(roi_object, RED, "Grounding Missing")
 
 
@@ -82,9 +88,12 @@ def process_tape_roi(
     tape_deviation_detector,
     visualizer,
     annotations,
+    timings,
 ):
     """Process tape detection and deviation check"""
+    start_time = time.time()
     results = tape_detector.detect(roi_image)
+    timings["tape_detector_time"] += time.time() - start_time
     detected_classes = (
         results[0].boxes.cls.tolist() if results[0].boxes is not None else []
     )
@@ -122,9 +131,11 @@ def process_tape_roi(
             logging.error(f"Could not determine tape index from ROI name: {roi_name}")
 
 
-def process_label_roi(roi_name, roi_image, roi_object, tape_detector, visualizer):
+def process_label_roi(roi_name, roi_image, roi_object, tape_detector, visualizer, timings):
     """Process label detection"""
+    start_time = time.time()
     results = tape_detector.detect(roi_image)
+    timings["tape_detector_time"] += time.time() - start_time
     detected_classes = (
         results[0].boxes.cls.tolist() if results[0].boxes is not None else []
     )
@@ -134,7 +145,7 @@ def process_label_roi(roi_name, roi_image, roi_object, tape_detector, visualizer
 
 
 def process_single_roi(
-    roi_name, roi_image, roi_cropper, detectors, visualizer, annotations
+    roi_name, roi_image, roi_cropper, detectors, visualizer, annotations, timings
 ):
     """Process a single ROI based on its type"""
     if roi_image is None or roi_image.size == 0:
@@ -151,7 +162,7 @@ def process_single_roi(
 
     if roi_name.startswith("GROUNDING"):
         process_grounding_roi(
-            roi_image, roi_object, detectors["grounding_detector"], visualizer
+            roi_image, roi_object, detectors["grounding_detector"], visualizer, timings
         )
     elif roi_name.startswith("TAPE"):
         process_tape_roi(
@@ -162,28 +173,33 @@ def process_single_roi(
             detectors["tape_deviation_detector"],
             visualizer,
             annotations,
+            timings,
         )
     elif roi_name.startswith("LABEL"):
         process_label_roi(
-            roi_name, roi_image, roi_object, detectors["tape_detector"], visualizer
+            roi_name, roi_image, roi_object, detectors["tape_detector"], visualizer, timings
         )
 
 
 def process_orientation_detection(
-    workspace, annotations, roi_data, detectors, visualizer
+    workspace, annotations, roi_data, detectors, visualizer, timings
 ):
     """Process orientation detection for branches"""
+    start_time = time.time()
     new_rois_images, new_rois_json = detectors["yolo_roi_mapper"].get_images(
         workspace, annotations, roi_data
     )
+    timings["yolo_roi_mapper_time"] += time.time() - start_time
 
     if not new_rois_images:
         return
 
     for roi_name, roi_image in new_rois_images.items():
+        start_time = time.time()
         is_wrong_orientation = detectors["branch_wrong_orientation_detector"].detect(
             roi_image
         )
+        timings["branch_wrong_orientation_detector_time"] += time.time() - start_time
         roi_id = int(roi_name.split("_")[-1])
         new_roi_data = next(
             (roi for roi in new_rois_json["orientation"] if roi["id"] == roi_id), None
@@ -193,9 +209,14 @@ def process_orientation_detection(
             visualizer.draw_roi_center(new_roi_data, RED, f"Wrong Orientation {roi_id}")
 
 
-def process_zone(image, zone_number, extractor, roi_data_z1, roi_data_z2, detectors):
+def process_zone(
+    image, zone_number, extractor, roi_data_z1, roi_data_z2, detectors, timings
+):
     """Process a single zone (Z1 or Z2) and return the visualization image"""
+    start_time = time.time()
     workspace = extractor.extract_workspace(image)
+    timings[f"workspace_extraction_zone_{zone_number}"] = time.time() - start_time
+
     if workspace is None:
         logging.error(f"Workspace for Zone {zone_number} could not be extracted.")
         return None
@@ -208,19 +229,22 @@ def process_zone(image, zone_number, extractor, roi_data_z1, roi_data_z2, detect
         roi_cropper = detectors["roi_cropper_z2"]
         roi_data = roi_data_z2
 
+    start_time = time.time()
     rois = roi_cropper.crop(workspace)
+    timings[f"roi_cropping_zone_{zone_number}"] = time.time() - start_time
+
     visualizer = Visualizer(workspace)
     annotations = {}
 
     # Process all ROIs
     for roi_name, roi_image in rois.items():
         process_single_roi(
-            roi_name, roi_image, roi_cropper, detectors, visualizer, annotations
+            roi_name, roi_image, roi_cropper, detectors, visualizer, annotations, timings
         )
 
     # Process orientation detection
     process_orientation_detection(
-        workspace, annotations, roi_data, detectors, visualizer
+        workspace, annotations, roi_data, detectors, visualizer, timings
     )
 
     return visualizer.get_image()
@@ -230,13 +254,22 @@ def run_inspection_cycle(
     cameras, extractor, roi_data_z1, roi_data_z2, detectors, ui_manager
 ):
     """Run a single inspection cycle with step-by-step visualization"""
+    timings = {
+        "grounding_detector_time": 0,
+        "tape_detector_time": 0,
+        "branch_wrong_orientation_detector_time": 0,
+        "yolo_roi_mapper_time": 0,
+    }
     logging.info(LOG_SEPARATOR)
     logging.info("Starting new inspection cycle...")
     logging.info(LOG_SEPARATOR)
 
     ui_manager.hide_instruction_window()
 
+    start_time = time.time()
     images = cameras.take_photos()
+    timings["image_capture"] = time.time() - start_time
+
     if not images:
         logging.warning("No images were loaded. Returning to idle state.")
         ui_manager.show_main_instructions()
@@ -250,7 +283,7 @@ def run_inspection_cycle(
         zone_number = i + 1
         logging.info(f"Processing Zone {zone_number}...")
         zone_viz = process_zone(
-            image, zone_number, extractor, roi_data_z1, roi_data_z2, detectors
+            image, zone_number, extractor, roi_data_z1, roi_data_z2, detectors, timings
         )
         if zone_viz is not None:
             zone_images.append((zone_number, zone_viz))
@@ -282,6 +315,7 @@ def run_inspection_cycle(
             return "exit"
         elif action == "finish":
             logging.info("Inspection cycle completed.")
+            log_timing_table(timings)
             cv2.destroyWindow(ui_manager.visualization_window)
             ui_manager.show_main_instructions()
             return "continue"
@@ -291,6 +325,17 @@ def run_inspection_cycle(
         elif action == "previous":
             current_index = (current_index - 1) % len(zone_images)
             logging.info(f"Moving to Zone {zone_images[current_index][0]}")
+
+
+def log_timing_table(timings):
+    """Log a formatted table of timings"""
+    print(LOG_SEPARATOR)
+    print("Inspection Performance Summary")
+    print(LOG_SEPARATOR)
+    sorted_timings = sorted(timings.items(), key=lambda item: item[1], reverse=True)
+    for key, value in sorted_timings:
+        print(f"{key:<30} | {value:.4f} seconds")
+    print(LOG_SEPARATOR)
 
 
 if __name__ == "__main__":
@@ -307,16 +352,21 @@ if __name__ == "__main__":
 
     try:
         # Load configurations
+        start_time = time.time()
         logging.info("Loading configurations...")
         roi_data_z1, roi_data_z2, positions = load_configurations()
-        logging.info("Configurations loaded successfully")
+        logging.info(
+            f"Configurations loaded successfully in {time.time() - start_time:.2f} seconds"
+        )
 
         # Initialize UI Manager
+        start_time = time.time()
         logging.info("Initializing UI Manager...")
         ui_manager = UIManager(WINDOW_WIDTH, WINDOW_HEIGHT, KEY_MAPPING)
-        logging.info("UI Manager ready")
+        logging.info(f"UI Manager ready in {time.time() - start_time:.2f} seconds")
 
         # Initialize components
+        start_time = time.time()
         logging.info("Initializing image server...")
         cameras = ImageServer(DEFAULT_Z1_IMAGE_PATH, DEFAULT_Z2_IMAGE_PATH)
         logging.info("Image server initialized")
@@ -327,7 +377,9 @@ if __name__ == "__main__":
 
         logging.info("Initializing detectors...")
         detectors = initialize_detectors(roi_data_z1, roi_data_z2, positions)
-        logging.info("All detectors initialized successfully")
+        logging.info(
+            f"All detectors initialized successfully in {time.time() - start_time:.2f} seconds"
+        )
 
         logging.info(LOG_SEPARATOR)
         logging.info("System ready! Press ENTER to start inspection or ESC to exit")

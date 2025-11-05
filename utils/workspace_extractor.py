@@ -3,12 +3,13 @@ import cv2.aruco as aruco
 import numpy as np
 import os
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 
 class WorkspaceExtractor:
     def __init__(self, custom_yaml_path="custom_markers.yaml"):
         self.custom_yaml_path = custom_yaml_path
-        self.all_dicts = {}
+        self.detectors = []
         self.logger = logging.getLogger(__name__)
         self.load_dictionaries()
 
@@ -17,9 +18,11 @@ class WorkspaceExtractor:
             "DICT_6X6_250": aruco.DICT_6X6_250,
         }
 
+        all_dicts = {}
+
         for name, dict_key in aruco_dict_list.items():
             try:
-                self.all_dicts[name] = aruco.getPredefinedDictionary(dict_key)
+                all_dicts[name] = aruco.getPredefinedDictionary(dict_key)
             except Exception as e:
                 self.logger.error(f"Error loading predefined dictionary {name}: {e}")
 
@@ -58,47 +61,51 @@ class WorkspaceExtractor:
                 f"Custom dictionary file not found: {self.custom_yaml_path}"
             )
 
-        self.all_dicts.update(custom_dicts)
-        self.logger.info(f"Total dictionaries loaded: {len(self.all_dicts)}")
+        all_dicts.update(custom_dicts)
+
+        for name, aruco_dict in all_dicts.items():
+            for border in [1, 2]:
+                if aruco_dict.markerSize != 6 and border == 2:
+                    continue
+                parameters = aruco.DetectorParameters()
+                parameters.minMarkerPerimeterRate = 0.07
+                parameters.minDistanceToBorder = 0
+                parameters.markerBorderBits = border
+                detector = aruco.ArucoDetector(aruco_dict, parameters)
+                self.detectors.append((name, border, detector))
+
+        self.logger.info(f"Total detectors created: {len(self.detectors)}")
 
     def detect_markers(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         all_found_markers = []
 
-        for name, aruco_dict in self.all_dicts.items():
-            try:
-                parameters = aruco.DetectorParameters()
-                parameters.minMarkerPerimeterRate = 0.07
-                parameters.minDistanceToBorder = 0
+        def detect_task(args):
+            name, border, detector = args
+            corners, ids, rejected = detector.detectMarkers(gray)
+            found_markers = []
+            if ids is not None and len(ids) > 0:
+                for i, marker_id in enumerate(ids):
+                    corner_points = corners[i][0]
+                    center = np.mean(corner_points, axis=0)
+                    area = cv2.contourArea(corners[i])
+                    found_markers.append(
+                        {
+                            "dictionary": name,
+                            "id": int(marker_id[0]),
+                            "border": border,
+                            "center": center,
+                            "corners": corners[i].tolist(),
+                            "area": area,
+                        }
+                    )
+            return found_markers
 
-                for border in [1, 2]:
-                    if aruco_dict.markerSize != 6 and border == 2:
-                        continue
+        with ThreadPoolExecutor() as executor:
+            results = executor.map(detect_task, self.detectors)
 
-                    parameters.markerBorderBits = border
-                    detector = aruco.ArucoDetector(aruco_dict, parameters)
-                    corners, ids, rejected = detector.detectMarkers(gray)
-
-                    if ids is not None and len(ids) > 0:
-                        for i, marker_id in enumerate(ids):
-                            corner_points = corners[i][0]
-                            center = np.mean(corner_points, axis=0)
-                            area = cv2.contourArea(corners[i])
-
-                            all_found_markers.append(
-                                {
-                                    "dictionary": name,
-                                    "id": int(marker_id[0]),
-                                    "border": border,
-                                    "center": center,
-                                    "corners": corners[i].tolist(),
-                                    "area": area,
-                                }
-                            )
-
-            except Exception as e:
-                self.logger.error(f"Error detecting markers in dictionary {name}: {e}")
-                continue
+        for result in results:
+            all_found_markers.extend(result)
 
         unique_markers = self.remove_duplicate_markers(all_found_markers)
         return unique_markers
