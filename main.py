@@ -1,5 +1,5 @@
 from utils import ImageServer, WorkspaceExtractor, ROICropper, Visualizer
-from detectors import GroundingWireDetector, TapeDetector, TapeDeviationDetector, WrongOrientation
+from detectors import GroundingWireDetector, MissingWiresDetector, TapeDetector, TapeDeviationDetector, WrongOrientation
 from utils.yolo_roi_mapper import YOLOROIMapper
 import cv2
 import json
@@ -31,6 +31,8 @@ if __name__ == "__main__":
     tape_deviation_detector = TapeDeviationDetector(positions)
     yolo_roi_mapper = YOLOROIMapper()
     branch_wrong_orientation_detector = WrongOrientation()
+    missing_wires_detector = MissingWiresDetector()
+    missing_wires_detector.set_rois_from_config(roi_data_z2)
 
     if not images:
         logging.info("No images were loaded. Exiting.")
@@ -76,6 +78,15 @@ if __name__ == "__main__":
                             is_present = grounding_detector.is_present(roi_image)
                             if not is_present:
                                 visualizer.draw_roi(roi_object, Visualizer.RED, "Grounding Missing")
+                                
+                        elif roi_name.startswith("WIRES"):
+                            # Check for all wires (combined ROI - for rois_z1.json)
+                            missing_wires = missing_wires_detector.get_missing_wires(roi_image)
+                            if missing_wires:
+                                wire_names = ', '.join(missing_wires)
+                                visualizer.draw_roi(roi_object, Visualizer.RED, f"Missing wires: {wire_names}")
+                            else:
+                                logging.info(f"All wires present in {roi_name}")
 
                         else:
                             # Apply TapeDetector and visualize results
