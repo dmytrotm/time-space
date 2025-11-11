@@ -49,12 +49,6 @@ def display_to_framebuffer(image_np, fb_device_path="/dev/fb0"):
         
         packed_image = ((R >> 3) << 11) | ((G >> 2) << 5) | (B >> 3)
         framebuffer_data = packed_image.astype(np.uint16)
-    elif bpp in (24, 32):
-        if bpp == 32 and image_np.shape[2] == 3:
-            image_np = cv2.cvtColor(image_np, cv2.COLOR_BGR2BGRA)
-        elif bpp == 24 and image_np.shape[2] == 4:
-            image_np = cv2.cvtColor(image_np, cv2.COLOR_BGRA2BGR)
-        framebuffer_data = image_np
     else:
         print(f"Error: Unsupported bpp: {bpp}")
         return False
@@ -81,7 +75,6 @@ class UIManager:
         self.fb_device = "/dev/fb0"
         self.visualization_window = "framebuffer"
 
-        print("UIManager initialized for framebuffer display")
         self.show_main_instructions()
 
     def mouse_callback(self, event, x, y, flags, param):
@@ -110,7 +103,6 @@ class UIManager:
         cv2.putText(img, text, (text_x, text_y), FONT, 1, GREEN, 2, cv2.LINE_AA)
 
         display_to_framebuffer(img, self.fb_device)
-        print("Main instructions displayed on framebuffer")
 
     def show_loading_screen(self):
         """Display loading screen"""
@@ -120,7 +112,6 @@ class UIManager:
         text_y = (self.window_height + text_size[1]) // 2
         cv2.putText(loading_screen, LOADING_TEXT, (text_x, text_y), FONT, FONT_SCALE, WHITE, FONT_THICKNESS)
         display_to_framebuffer(loading_screen, self.fb_device)
-        print("Loading screen displayed")
 
     def hide_loading_screen(self):
         """Hide loading screen - just clear to black"""
@@ -148,7 +139,6 @@ class UIManager:
         cv2.putText(canvas, zone_info, (zone_info_x, NAV_ZONE_INFO_OFFSET_Y + zone_info_size[1]), FONT, 1, WHITE, 2)
 
         display_to_framebuffer(canvas, self.fb_device)
-        print(f"Zone {zone_num}/{total_zones} displayed")
 
     def wait_for_action(self, timeout=50):
         """Wait for keyboard input (console-based)"""
@@ -182,11 +172,9 @@ class UIManager:
         """Clear the framebuffer"""
         black_screen = np.zeros((self.window_height, self.window_width, 3), dtype=np.uint8)
         display_to_framebuffer(black_screen, self.fb_device)
-        print("Instruction window cleared")
 
     def cleanup(self):
         """Clean up UI resources"""
         os.system("setterm -cursor on")
         black_screen = np.zeros((self.window_height, self.window_width, 3), dtype=np.uint8)
         display_to_framebuffer(black_screen, self.fb_device)
-        print("UI cleanup completed")

@@ -22,11 +22,9 @@ class ImageServer:
         images = []
         for path in self.image_paths:
             if not os.path.exists(path):
-                print(f"Warning: Image path not found at {path}")
                 continue
             img = cv2.imread(path)
             if img is not None:
                 images.append(img)
             else:
-                print(f"Warning: Could not read image at {path}")
         return images

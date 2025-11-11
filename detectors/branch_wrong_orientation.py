@@ -45,4 +45,3 @@ if __name__ == "__main__":
     img0 = cv2.imread("branchdataset/Test_Case_2_2_Z2_4_2_ORIENTATION_003.png")
     img0 = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
 
-    print(f"1 - {detector.detect(img1)}\n0 - {detector.detect(img0)}")

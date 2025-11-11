@@ -53,7 +53,6 @@ class TestTapeDeviationDetector(unittest.TestCase):
                                 self.assertEqual(result, 1)
                             else:
                                 self.assertEqual(result, 0)
-        print(count)
 
 
 if __name__ == "__main__":
