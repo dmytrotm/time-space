@@ -156,13 +156,16 @@ class UIManager:
                 if key == '\r' or key == '\n': return "start"
                 if key == ' ': return "finish"
                 if key == '\x1b':
-                    if select.select([sys.stdin], [], [], 0.01)[0]:
+                    # Increased timeout and added up/down arrow support
+                    if select.select([sys.stdin], [], [], 0.05)[0]:
                         next1 = sys.stdin.read(1)
                         if next1 == '[':
-                            if select.select([sys.stdin], [], [], 0.01)[0]:
+                            if select.select([sys.stdin], [], [], 0.05)[0]:
                                 next2 = sys.stdin.read(1)
-                                if next2 == 'C': return "next"
-                                if next2 == 'D': return "previous"
+                                if next2 in ('B', 'C'):  # Down or Right
+                                    return "next"
+                                if next2 in ('A', 'D'):  # Up or Left
+                                    return "previous"
                     return "exit"
         finally:
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
