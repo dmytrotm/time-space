@@ -19,9 +19,6 @@ from utils.constants import (
     LABEL_CLASS_ID,
     TAPE_DEVIATION_TOO_FAR,
     TAPE_DEVIATION_WRONG_LENGTH,
-    LOG_SEPARATOR,
-    LOG_DATE_FORMAT,
-    LOG_FORMAT,
     WORKSPACE_EXTRACTOR_CONFIG,
     KEY_MAPPING,
 )
@@ -33,7 +30,6 @@ from detectors import (
 )
 import cv2
 import json
-import logging
 
 
 def load_configurations():
@@ -119,7 +115,7 @@ def process_tape_roi(
                     roi_object, ORANGE, f"FAIL in {roi_name}: Wrong length"
                 )
         except (ValueError, IndexError):
-            logging.error(f"Could not determine tape index from ROI name: {roi_name}")
+            pass
 
 
 def process_label_roi(roi_name, roi_image, roi_object, tape_detector, visualizer):
@@ -138,7 +134,6 @@ def process_single_roi(
 ):
     """Process a single ROI based on its type"""
     if roi_image is None or roi_image.size == 0:
-        logging.warning(f"Warning: ROI {roi_name} is empty or invalid.")
         return
 
     category, roi_id_str = roi_name.split("_")
@@ -146,7 +141,6 @@ def process_single_roi(
 
     roi_object = find_roi_object(roi_cropper, category, roi_id)
     if roi_object is None:
-        logging.error(f"Could not find ROI object for {roi_name}")
         return
 
     if roi_name.startswith("GROUNDING"):
@@ -197,7 +191,6 @@ def process_zone(image, zone_number, extractor, roi_data_z1, roi_data_z2, detect
     """Process a single zone (Z1 or Z2) and return the visualization image"""
     workspace = extractor.extract_workspace(image)
     if workspace is None:
-        logging.error(f"Workspace for Zone {zone_number} could not be extracted.")
         return None
 
     # Select ROI data and cropper for this zone
@@ -230,15 +223,10 @@ def run_inspection_cycle(
     cameras, extractor, roi_data_z1, roi_data_z2, detectors, ui_manager
 ):
     """Run a single inspection cycle with step-by-step visualization"""
-    logging.info(LOG_SEPARATOR)
-    logging.info("Starting new inspection cycle...")
-    logging.info(LOG_SEPARATOR)
-
     ui_manager.hide_instruction_window()
 
     images = cameras.take_photos()
     if not images:
-        logging.warning("No images were loaded. Returning to idle state.")
         ui_manager.show_main_instructions()
         return "continue"
 
@@ -248,24 +236,17 @@ def run_inspection_cycle(
     zone_images = []
     for i, image in enumerate(images):
         zone_number = i + 1
-        logging.info(f"Processing Zone {zone_number}...")
         zone_viz = process_zone(
             image, zone_number, extractor, roi_data_z1, roi_data_z2, detectors
         )
         if zone_viz is not None:
             zone_images.append((zone_number, zone_viz))
-            logging.info(f"Zone {zone_number} processed successfully")
-        else:
-            logging.warning(f"Zone {zone_number} processing failed")
 
     ui_manager.hide_loading_screen()
 
     if not zone_images:
-        logging.error("No zones were successfully processed.")
         ui_manager.show_main_instructions()
         return "continue"
-
-    logging.info(f"All zones processed. Total zones: {len(zone_images)}")
 
     current_index = 0
 
@@ -276,21 +257,17 @@ def run_inspection_cycle(
         action = ui_manager.wait_for_action()
 
         if action == "exit":
-            logging.info("Exit requested during inspection.")
             ui_manager.cleanup()
             ui_manager.show_main_instructions()
             return "exit"
         elif action == "finish":
-            logging.info("Inspection cycle completed.")
             ui_manager.cleanup()
             ui_manager.show_main_instructions()
             return "continue"
         elif action == "next":
             current_index = (current_index + 1) % len(zone_images)
-            logging.info(f"Moving to Zone {zone_images[current_index][0]}")
         elif action == "previous":
             current_index = (current_index - 1) % len(zone_images)
-            logging.info(f"Moving to Zone {zone_images[current_index][0]}")
 
 
 if __name__ == "__main__":
@@ -299,46 +276,23 @@ if __name__ == "__main__":
     DEFAULT_Z1_IMAGE_PATH = "Z1_0_1.png"
     DEFAULT_Z2_IMAGE_PATH = "Z2_0_1.png"
 
-    logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=LOG_DATE_FORMAT)
-
-    logging.info(LOG_SEPARATOR)
-    logging.info("Starting Inspection System")
-    logging.info(LOG_SEPARATOR)
-
     try:
         # Load configurations
-        logging.info("Loading configurations...")
         roi_data_z1, roi_data_z2, positions = load_configurations()
-        logging.info("Configurations loaded successfully")
 
         # Initialize UI Manager
-        logging.info("Initializing UI Manager...")
         ui_manager = UIManager(WINDOW_WIDTH, WINDOW_HEIGHT, KEY_MAPPING)
-        logging.info("UI Manager ready")
 
         # Initialize components
-        logging.info("Initializing image server...")
         cameras = ImageServer(DEFAULT_Z1_IMAGE_PATH, DEFAULT_Z2_IMAGE_PATH)
-        logging.info("Image server initialized")
-
-        logging.info("Initializing workspace extractor...")
         extractor = WorkspaceExtractor(WORKSPACE_EXTRACTOR_CONFIG)
-        logging.info("Workspace extractor initialized")
-
-        logging.info("Initializing detectors...")
         detectors = initialize_detectors(roi_data_z1, roi_data_z2, positions)
-        logging.info("All detectors initialized successfully")
-
-        logging.info(LOG_SEPARATOR)
-        logging.info("System ready! Press ENTER to start inspection or ESC to exit")
-        logging.info(LOG_SEPARATOR)
 
         # Main processing loop
         while True:
             action = ui_manager.wait_for_action()
 
             if action == "exit":
-                logging.info("Exit command received. Shutting down...")
                 break
 
             if action == "start":
@@ -351,16 +305,12 @@ if __name__ == "__main__":
                     ui_manager,
                 )
                 if result == "exit":
-                    logging.info("Exit requested during cycle. Shutting down...")
                     break
 
     except KeyboardInterrupt:
-        logging.info("\nKeyboard interrupt received. Shutting down...")
+        pass
     except Exception as e:
-        logging.error(f"Fatal error: {e}", exc_info=True)
+        print(f"Fatal error: {e}")
     finally:
         # Cleanup
-        logging.info("Cleaning up...")
         ui_manager.cleanup()
-        logging.info("Shutdown complete")
-        logging.info(LOG_SEPARATOR)

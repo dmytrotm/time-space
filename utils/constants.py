@@ -1,10 +1,5 @@
 import cv2
 
-# Logging Configuration
-LOG_SEPARATOR = "=" * 60
-LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
-LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
-
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 480
 

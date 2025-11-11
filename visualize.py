@@ -1,13 +1,8 @@
 from utils import ImageServer, WorkspaceExtractor, ROICropper, Visualizer
 import cv2
 import json
-import logging
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
-
     # Load ROI configurations
     with open("configs/rois_z1.json", "r") as f:
         roi_data_z1 = json.load(f)
@@ -25,7 +20,7 @@ if __name__ == "__main__":
     roi_cropper_z2 = ROICropper(roi_data_z2)
 
     if not images:
-        logging.info("No images were loaded. Exiting.")
+        print("No images were loaded. Exiting.")
     else:
         for i, image in enumerate(images):
             zone_number = i + 1
@@ -43,9 +38,7 @@ if __name__ == "__main__":
 
                 cv2.imshow(f"Zone {zone_number} Visualizations", visualizer.get_image())
             else:
-                logging.error(
-                    f"Workspace for Zone {zone_number} could not be extracted."
-                )
+                print(f"Workspace for Zone {zone_number} could not be extracted.")
 
         cv2.waitKey(0)
         cv2.destroyAllWindows()

@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import json
-import logging
 
 from utils.roi_cropper import ROICropper
 from utils.constants import RELATIVE_HALF_SIZE_RASNET as RELATIVE_HALF_SIZE
@@ -27,20 +26,19 @@ class YOLOROIMapper:
             (0, 0, 128),
             (128, 128, 0),
         ]
-        self.logger = logging.getLogger(__name__)
 
     def load_positions_json(self, json_path):
         try:
             with open(json_path, "r") as f:
                 return json.load(f)
         except FileNotFoundError:
-            self.logger.error(f"JSON file {json_path} not found")
+            print(f"JSON file {json_path} not found")
             return None
 
     def get_tape_roi_coordinates(self, positions_data, tape_id, original_size):
         """Get tape ROI coordinates - supports both rectangle and center-based formats"""
         if not positions_data or "tapes" not in positions_data:
-            self.logger.error("No tapes data found in JSON")
+            print("No tapes data found in JSON")
             return None, None
 
         target_tape = None
@@ -105,7 +103,7 @@ class YOLOROIMapper:
                             [class_id, x_center, y_center, width, height]
                         )
         else:
-            self.logger.warning(f"Annotation file {annotation_path} not found")
+            print(f"Annotation file {annotation_path} not found")
 
         return annotations
 
@@ -120,7 +118,7 @@ class YOLOROIMapper:
         """Map ROI annotations to original image coordinates in square (center-based) format
         The right border of the square will be at the center of the detected object"""
         if roi_position is None or roi_position[0] is None:
-            self.logger.warning("Invalid ROI position")
+            print("Invalid ROI position")
             return []
 
         mapped_rois = []
@@ -167,7 +165,7 @@ class YOLOROIMapper:
         positions_data,
     ):
         if original_img is None:
-            self.logger.error(f"Could not load image")
+            print(f"Could not load image")
             return {"orientation": []}
 
         original_size = (
@@ -187,11 +185,9 @@ class YOLOROIMapper:
             )
 
             if roi_position is None:
-                self.logger.warning(f"Skipping tape {tape_id} due to invalid ROI")
                 continue
 
             if not annotations:
-                self.logger.info(f"No annotations provided for tape {tape_id}")
                 continue
 
             mapped_rois = self.map_roi_annotations_to_original(
@@ -313,7 +309,6 @@ class YOLOROIMapper:
 
         # Draw final orientation ROIs (square format)
         if "orientation" not in result_json or not result_json["orientation"]:
-            self.logger.info("No orientation ROIs to visualize.")
             plt.figure(figsize=(15, 15))
             plt.imshow(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
             plt.title("ROIs on Original Image")
@@ -378,8 +373,7 @@ class YOLOROIMapper:
 
         # Check if there are any ROIs to process
         if not new_rois_json.get("orientation"):
-            self.logger.info("No orientation ROIs found, skipping cropping")
-            return None
+            return None, None
 
         cropper = ROICropper(new_rois_json)
         new_rois_images = cropper.crop(workspace)

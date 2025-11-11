@@ -2,14 +2,12 @@ import cv2
 import cv2.aruco as aruco
 import numpy as np
 import os
-import logging
 
 
 class WorkspaceExtractor:
     def __init__(self, custom_yaml_path="custom_markers.yaml"):
         self.custom_yaml_path = custom_yaml_path
         self.all_dicts = {}
-        self.logger = logging.getLogger(__name__)
         self.load_dictionaries()
 
     def load_dictionaries(self):
@@ -21,7 +19,7 @@ class WorkspaceExtractor:
             try:
                 self.all_dicts[name] = aruco.getPredefinedDictionary(dict_key)
             except Exception as e:
-                self.logger.error(f"Error loading predefined dictionary {name}: {e}")
+                print(f"Error loading predefined dictionary {name}: {e}")
 
         custom_dicts = {}
         if os.path.exists(self.custom_yaml_path):
@@ -42,24 +40,17 @@ class WorkspaceExtractor:
                                 if dictionary.readDictionary(dict_node):
                                     custom_dicts[name] = dictionary
                             except Exception as e:
-                                self.logger.error(
-                                    f"Error loading custom dictionary {name}: {e}"
-                                )
+                                print(f"Error loading custom dictionary {name}: {e}")
                                 continue
                     fs.release()
                 else:
-                    self.logger.warning(
-                        f"Could not open YAML file: {self.custom_yaml_path}"
-                    )
+                    print(f"Could not open YAML file: {self.custom_yaml_path}")
             except Exception as e:
-                self.logger.error(f"Error reading custom dictionary file: {e}")
+                print(f"Error reading custom dictionary file: {e}")
         else:
-            self.logger.warning(
-                f"Custom dictionary file not found: {self.custom_yaml_path}"
-            )
+            print(f"Custom dictionary file not found: {self.custom_yaml_path}")
 
         self.all_dicts.update(custom_dicts)
-        self.logger.info(f"Total dictionaries loaded: {len(self.all_dicts)}")
 
     def detect_markers(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -97,7 +88,7 @@ class WorkspaceExtractor:
                             )
 
             except Exception as e:
-                self.logger.error(f"Error detecting markers in dictionary {name}: {e}")
+                print(f"Error detecting markers in dictionary {name}: {e}")
                 continue
 
         unique_markers = self.remove_duplicate_markers(all_found_markers)
@@ -166,7 +157,7 @@ class WorkspaceExtractor:
 
     def extract_workspace(self, image):
         if image is None:
-            self.logger.error("Input image is None")
+            print("Input image is None")
             return None
 
         found_markers = self.detect_markers(image)
@@ -210,5 +201,5 @@ class WorkspaceExtractor:
             return corrected_image
 
         except Exception as e:
-            self.logger.error(f"Error during perspective correction: {e}")
+            print(f"Error during perspective correction: {e}")
             return None

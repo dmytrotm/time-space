@@ -1,12 +1,10 @@
 import numpy as np
-import logging
 
 
 class ROICropper:
     def __init__(self, roi_data):
         self.roi_objects = {}
         self.total_rois = 0
-        self.logger = logging.getLogger(__name__)
         self.process_rois(roi_data)
 
     def _to_float(self, value):
@@ -31,23 +29,15 @@ class ROICropper:
                 if valid_rois:
                     self.roi_objects[key] = valid_rois
                     self.total_rois += len(valid_rois)
-                    self.logger.info(f"Loaded {len(valid_rois)} {key}")
-                else:
-                    self.logger.warning(f"Skipping '{key}': no valid ROI objects found")
 
             elif isinstance(value, dict):
                 roi_type = self.detect_roi_type(value)
                 if roi_type:
                     self.roi_objects[key] = [{**value, "_type": roi_type}]
                     self.total_rois += 1
-                    self.logger.info(f"Loaded 1 {key}")
-                else:
-                    self.logger.warning(f"Skipping '{key}': not a valid ROI object")
 
         if self.total_rois == 0:
             raise ValueError("No valid ROI objects found in the data")
-
-        self.logger.info(f"Total ROIs loaded: {self.total_rois}")
 
     def detect_roi_type(self, obj):
         """Detect ROI type: 'center' (square) or 'rectangle'"""
@@ -161,29 +151,20 @@ class ROICropper:
 
                     # Validate bounds
                     if x2 <= x1 or y2 <= y1:
-                        self.logger.warning(
-                            f"Invalid bounds for {category_name} {roi_id} ({roi_type}): "
-                            f"x1={x1}, y1={y1}, x2={x2}, y2={y2}"
-                        )
                         continue
 
                     # Crop the ROI
                     cropped_roi = image[y1:y2, x1:x2]
 
                     if cropped_roi.size == 0:
-                        self.logger.warning(f"Empty crop for {category_name} {roi_id}")
                         continue
 
                     # Create unique key
                     key = f"{category_name.upper()}_{roi_id:03d}"
                     cropped_images[key] = cropped_roi
 
-                    self.logger.debug(
-                        f"Cropped {key} ({roi_type}): {cropped_roi.shape[1]}x{cropped_roi.shape[0]}"
-                    )
-
                 except Exception as e:
-                    self.logger.error(f"Error cropping {category_name} {roi_id}: {e}")
+                    print(f"Error cropping {category_name} {roi_id}: {e}")
                     continue
 
         return cropped_images
