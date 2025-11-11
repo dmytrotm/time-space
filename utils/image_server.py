@@ -27,4 +27,5 @@ class ImageServer:
             if img is not None:
                 images.append(img)
             else:
+                print(f"Warning: Could not read image at {path}")
         return images
