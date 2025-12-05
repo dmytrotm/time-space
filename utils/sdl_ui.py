@@ -37,7 +37,7 @@ def render_centered_text(renderer, font, message, y_pos, color=(255, 255, 255), 
 def render_start_screen(renderer, font_large, font_small, width, height):
     """Render the start screen."""
     # Title
-    render_centered_text(renderer, font_large, "", height // 3, (255, 255, 255), width)
+    render_centered_text(renderer, font_large, "TIME&SPACE", height // 3, (255, 255, 255), width)
     
     # Instructions
     render_centered_text(renderer, font_small, "Press {place_holder} to start", 
@@ -108,7 +108,17 @@ def main():
     
     # Load fonts
     font_large = sdlttf.TTF_OpenFont(b"/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
+    if not font_large:
+        print("Error loading large font!")
+        print("Trying alternative font...")
+        font_large = sdlttf.TTF_OpenFont(b"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 48)
+    
     font_small = sdlttf.TTF_OpenFont(b"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
+    if not font_small:
+        print("Error loading small font!")
+        sdlttf.TTF_Quit()
+        sdl2.ext.quit()
+        exit(1)
     
     # Window setup
     WIDTH = 800
