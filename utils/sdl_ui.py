@@ -57,17 +57,17 @@ class SDK_UI_Manager():
 
     def render_loading_screen(self, renderer, font_large, font_small, frame_count):
         """Render the loading screen with animation."""
-        self.render_centered_text(renderer, font_large, "Loading...", 
-                                  self.HEIGHT // 3, (255, 255, 0), self.WIDTH)
+        # self.render_centered_text(renderer, font_large, "Loading...", 
+        #                           self.HEIGHT // 3, (255, 255, 0), self.WIDTH)
         
-        dots = "." * ((frame_count // 15) % 4)
-        self.render_centered_text(renderer, font_small, f"Please wait{dots}", 
-                                  self.HEIGHT // 2, (200, 200, 200), self.WIDTH)
+        # dots = "." * ((frame_count // 15) % 4)
+        # self.render_centered_text(renderer, font_small, f"Please wait{dots}", 
+        #                           self.HEIGHT // 2, (200, 200, 200), self.WIDTH)
         
         # Spinner animation
         angle = (frame_count * 6) % 360
         center_x = self.WIDTH // 2
-        center_y = self.HEIGHT // 2 + 60
+        center_y = self.HEIGHT // 2 #s+ 60
         radius = 20
         
         for i in range(8):
@@ -82,10 +82,10 @@ class SDK_UI_Manager():
 
     def render_error_screen(self, renderer, font_large, font_small, error_msg):
         """Render the error screen."""
-        self.render_centered_text(renderer, font_large, "ERROR", 
-                                  self.HEIGHT // 4, (255, 50, 50), self.WIDTH)
+        # self.render_centered_text(renderer, font_large, "ERROR", 
+        #                           self.HEIGHT // 4, (255, 50, 50), self.WIDTH)
         
-        self.render_centered_text(renderer, font_small, error_msg, 
+        self.render_centered_text(renderer, font_large, error_msg, 
                                   self.HEIGHT // 2 - 20, (255, 100, 100), self.WIDTH)
         
         self.render_centered_text(renderer, font_small, "Press KEY_1 to retry", 
