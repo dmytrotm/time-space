@@ -134,7 +134,7 @@ class SDK_UI_Manager():
         # Window setup
         window = sdl2.ext.Window("TIME&SPACE", size=(self.WIDTH, self.HEIGHT))
         window.show()
-        
+        sdl2.SDL_ShowCursor(sdl2.SDL_DISABLE)
         renderer = sdl2.SDL_CreateRenderer(window.window, -1, 0)
         
         # Keyboard input queue
