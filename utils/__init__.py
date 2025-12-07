@@ -6,7 +6,6 @@ from utils.preprocess import Preprocessor
 from utils.visualizer import Visualizer
 from utils.ui_manager import UIManager
 from utils.find_keyboard import find_keyboard_by_name
-from utils.list_input_devices import list_input_devices
 
 __all__ = [
     "ROICropper",
@@ -17,5 +16,4 @@ __all__ = [
     "Visualizer",
     "UIManager",
     "find_keyboard_by_name",
-    "list_input_devices",
 ]
