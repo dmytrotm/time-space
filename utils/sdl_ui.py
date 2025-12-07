@@ -1,7 +1,7 @@
 import sdl2
 import sdl2.ext
 import sdl2.sdlttf as sdlttf
-from find_keyboard import find_keyboard_by_name
+from .find_keyboard import find_keyboard_by_name
 from evdev import ecodes
 import threading
 from queue import Queue
