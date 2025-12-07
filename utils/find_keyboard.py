@@ -1,4 +1,11 @@
-from evdev import InputDevice, categorize, ecodes, list_devices
+try:
+    from evdev import InputDevice, categorize, ecodes, list_devices
+except ImportError:
+    InputDevice = None
+    categorize = None
+    ecodes = None
+    list_devices = lambda: []
+
 
 def find_keyboard_by_name(n="SayoDevice SayoDevice 1x7 RGB"):
     devices = [InputDevice(path) for path in list_devices()]

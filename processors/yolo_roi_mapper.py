@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import os
 import json
 
-from utils.roi_cropper import ROICropper
+from processors.roi_cropper import ROICropper
 from utils.constants import RELATIVE_HALF_SIZE_RASNET as RELATIVE_HALF_SIZE
 
 RELATIVE_HALF_SIZE = 0.052

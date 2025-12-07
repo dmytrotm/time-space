@@ -3,7 +3,15 @@ import sdl2
 import sdl2.ext
 import sdl2.sdlttf as sdlttf
 from utils.find_keyboard import find_keyboard_by_name
-from evdev import ecodes
+try:
+    from evdev import ecodes
+except ImportError:
+    class ecodes:
+        EV_KEY = 1
+        KEY_1 = 2
+        KEY_2 = 3
+        KEY_7 = 4
+
 import threading
 from queue import Queue
 
@@ -16,14 +24,14 @@ STATE_SUCCESS = 3
 
 
 class UIManager:
-    def __init__(self, func, window_width=800, window_height=480):
+    def __init__(self, verification_manager, image_server, window_width=800, window_height=480):
         """
-        func - function that returns (bool, str)
-               bool: True if success, False if error
-               str: error message (used only when bool is False)
+        Args:
+            verification_manager: Instance of VerificationManager
+            image_server: Instance of ImageServer
         """
-        self.func = func
-        self.result_queue = Queue()
+        self.verification_manager = verification_manager
+        self.image_server = image_server
         self.WIDTH = window_width
         self.HEIGHT = window_height
         self.is_running_verification = False
@@ -86,22 +94,28 @@ class UIManager:
         self.render_centered_text(renderer, font_small, "Press KEY_2 to return to main", 
                                   self.HEIGHT // 2 + 100, (150, 150, 150))
 
-    def run_function_thread(self):
-        """Execute the verification function in a separate thread."""
-        try:
-            success, error_msg = self.func()
-            self.result_queue.put((success, error_msg))
-        except Exception as e:
-            self.result_queue.put((False, f"Exception: {str(e)}"))
-        finally:
-            self.is_running_verification = False
-
     def start_verification(self):
-        """Start the verification function in a separate thread."""
+        """Start the verification process."""
         if not self.is_running_verification:
             self.is_running_verification = True
-            thread = threading.Thread(target=self.run_function_thread, daemon=True)
-            thread.start()
+            
+            # Capture images in main thread (fast enough usually, or move to thread if slow)
+            # For now, keeping it simple.
+            try:
+                images = self.image_server.take_photos()
+                if not images:
+                    # Handle no images error immediately
+                    # But we are in the UI loop context, so we need to handle state update in main loop
+                    # For now, let's just push a fake error result to manager's queue or handle it
+                    # But manager queue is for worker results.
+                    # Let's just trigger verification with empty list and let worker handle it?
+                    # Or better, handle it here.
+                    pass 
+                
+                self.verification_manager.trigger_verification(images)
+            except Exception as e:
+                print(f"Error starting verification: {e}")
+                self.is_running_verification = False
 
     def main_loop(self):
         """Main UI loop."""
@@ -146,13 +160,14 @@ class UIManager:
             frame_start = sdl2.SDL_GetTicks()
             
             # Check if function returned result
-            if not self.result_queue.empty():
-                success, err_msg = self.result_queue.get()
-                if success:
+            result = self.verification_manager.check_results()
+            if result:
+                self.is_running_verification = False
+                if result["success"]:
                     current_state = STATE_SUCCESS
                 else:
                     current_state = STATE_ERROR
-                    error_message = err_msg
+                    error_message = result["error"]
             
             # Handle keyboard input
             if not keys.empty():
