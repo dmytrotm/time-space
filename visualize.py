@@ -1,4 +1,5 @@
 from utils import ImageServer, WorkspaceExtractor, ROICropper, Visualizer
+from utils.constants import GREEN
 import cv2
 import json
 
@@ -11,7 +12,7 @@ if __name__ == "__main__":
 
     # Create instances of the tools
     cameras = ImageServer(
-        "dataset/Test_Case3/Z1_0_2.png", "dataset/Test_Case3/Z2_0_2.png"
+        "dataset/Test_Case2/Z1_0_2.png", "dataset/Test_Case3/Z2_0_2.png"
     )
     images = cameras.take_photos()
 
@@ -31,10 +32,16 @@ if __name__ == "__main__":
                 # Select the correct ROI cropper for the zone
                 roi_cropper = roi_cropper_z1 if zone_number == 1 else roi_cropper_z2
 
+                # Print available categories for debugging
+                print(f"\nZone {zone_number} - Available categories:")
+                for category in roi_cropper.roi_objects.keys():
+                    count = len(roi_cropper.roi_objects[category])
+                    print(f"  - '{category}' ({count} ROIs)")
+
                 visualizer = Visualizer(workspace)
 
-                # Draw all ROIs from the cropper in green
-                visualizer.draw_rois(roi_cropper, color=Visualizer.GREEN)
+                # Draw only wire ROIs in green
+                visualizer.draw_rois_by_category(roi_cropper, "wires", color=GREEN)
 
                 cv2.imshow(f"Zone {zone_number} Visualizations", visualizer.get_image())
             else:

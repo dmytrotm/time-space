@@ -33,29 +33,22 @@
       "end": {"x": 0.3959011060507482, "y": 0.6808510638297872}
     }
   ],
-  "wires": {
-    "color_ranges": {
-      "black": [{"lower": [0, 0, 0], "upper": [180, 255, 75]}],
-      "blue": [{"lower": [90, 40, 40], "upper": [130, 255, 255]}],
-      "brown": [{"lower": [160, 30, 20], "upper": [180, 200, 210]}]
+  "wires": [
+    {
+      "id": 0,
+      "name": "blue_brown",
+      "start": {"x": 0.0, "y": 0.582},
+      "end": {"x": 0.124, "y": 0.699},
+      "expected_colors": ["blue", "brown"]
     },
-    "rois": [
-      {
-        "id": 0,
-        "name": "blue_brown",
-        "start": {"x": 0.0, "y": 0.582},
-        "end": {"x": 0.124, "y": 0.699},
-        "expected_colors": ["blue", "brown"]
-      },
-      {
-        "id": 1,
-        "name": "black",
-        "start": {"x": 0.244, "y": 0.233},
-        "end": {"x": 0.309, "y": 0.466},
-        "expected_colors": ["black"]
-      }
-    ]
-  },
+    {
+      "id": 1,
+      "name": "black",
+      "start": {"x": 0.244, "y": 0.233},
+      "end": {"x": 0.309, "y": 0.466},
+      "expected_colors": ["black"]
+    }
+  ],
   "twisted-wires": [
     {
       "id": 1,
