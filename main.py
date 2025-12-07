@@ -32,6 +32,17 @@ import json
 import time
 
 
+# Error code constants
+ERROR_CODES = {
+    "GROUNDING_MISSING": "1",
+    "TAPE_NOT_DETECTED": "2",
+    "TAPE_TOO_FAR": "3",
+    "TAPE_WRONG_LENGTH": "4",
+    "LABEL_NOT_DETECTED": "5",
+    "WRONG_ORIENTATION": "6",
+}
+
+
 def load_configurations():
     """Load all configuration files"""
     with open(CONFIG_ROI_Z1_PATH, "r") as f:
@@ -72,7 +83,7 @@ def create_verification_function(cameras, extractor, roi_data_z1, roi_data_z2, d
     def verification_function():
         """
         Execute inspection cycle.
-        Returns (success: bool, error_message: str)
+        Returns (success: bool, error_code: str)
         """
         try:
             timings = {
@@ -91,8 +102,10 @@ def create_verification_function(cameras, extractor, roi_data_z1, roi_data_z2, d
             if not images:
                 return (False, "No images captured")
             
+            # Collect error codes (use set to avoid duplicates)
+            error_codes = set()
+            
             # Process all zones
-            errors = []
             for i, image in enumerate(images):
                 zone_number = i + 1
                 
@@ -102,8 +115,7 @@ def create_verification_function(cameras, extractor, roi_data_z1, roi_data_z2, d
                 timings[f"workspace_extraction_zone_{zone_number}"] = time.time() - start_time
                 
                 if workspace is None:
-                    errors.append(f"Failed to extract workspace for Zone {zone_number}")
-                    continue
+                    continue  # Continue to next zone instead of returning error
                 
                 # Select ROI data and cropper for this zone
                 if zone_number == 1:
@@ -138,7 +150,7 @@ def create_verification_function(cameras, extractor, roi_data_z1, roi_data_z2, d
                         is_present = detectors["grounding_detector"].is_present(roi_image)
                         timings["grounding_detector_time"] += time.time() - start_time
                         if not is_present:
-                            errors.append(f"Zone {zone_number}: Grounding Missing in {roi_name}")
+                            error_codes.add(ERROR_CODES["GROUNDING_MISSING"])
                     
                     elif roi_name.startswith("TAPE"):
                         start_time = time.time()
@@ -152,7 +164,7 @@ def create_verification_function(cameras, extractor, roi_data_z1, roi_data_z2, d
                         annotations[tape_id] = []
                         
                         if TAPE_CLASS_ID not in detected_classes:
-                            errors.append(f"Zone {zone_number}: TAPE not detected in {roi_name}")
+                            error_codes.add(ERROR_CODES["TAPE_NOT_DETECTED"])
                             continue
                         
                         for box_data in results[0].boxes:
@@ -172,9 +184,9 @@ def create_verification_function(cameras, extractor, roi_data_z1, roi_data_z2, d
                                 )
                                 
                                 if correct == TAPE_DEVIATION_TOO_FAR:
-                                    errors.append(f"Zone {zone_number}: TAPE too far in {roi_name}")
+                                    error_codes.add(ERROR_CODES["TAPE_TOO_FAR"])
                                 elif correct == TAPE_DEVIATION_WRONG_LENGTH:
-                                    errors.append(f"Zone {zone_number}: TAPE wrong length in {roi_name}")
+                                    error_codes.add(ERROR_CODES["TAPE_WRONG_LENGTH"])
                             except (ValueError, IndexError):
                                 pass
                     
@@ -187,7 +199,7 @@ def create_verification_function(cameras, extractor, roi_data_z1, roi_data_z2, d
                         )
                         
                         if LABEL_CLASS_ID not in detected_classes:
-                            errors.append(f"Zone {zone_number}: LABEL not detected in {roi_name}")
+                            error_codes.add(ERROR_CODES["LABEL_NOT_DETECTED"])
                 
                 # Process orientation detection
                 start_time = time.time()
@@ -205,13 +217,13 @@ def create_verification_function(cameras, extractor, roi_data_z1, roi_data_z2, d
                         timings["branch_wrong_orientation_detector_time"] += time.time() - start_time
                         
                         if is_wrong_orientation:
-                            roi_id = int(roi_name.split("_")[-1])
-                            errors.append(f"Zone {zone_number}: Wrong orientation detected in branch {roi_id}")
+                            error_codes.add(ERROR_CODES["WRONG_ORIENTATION"])
             
-            # Return success or failure
-            if errors:
-                # Return first error (or combine them)
-                return (False, errors[0])
+            # Return success or failure with combined error code
+            if error_codes:
+                # Sort and combine error codes into a string (e.g., "13" for errors 1 and 3)
+                combined_code = "".join(sorted(error_codes))
+                return (False, combined_code)
             else:
                 return (True, "")
                 
