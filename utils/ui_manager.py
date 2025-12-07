@@ -2,7 +2,7 @@
 import sdl2
 import sdl2.ext
 import sdl2.sdlttf as sdlttf
-from utils.find_keyboard import find_keyboard_by_name
+from find_keyboard import find_keyboard_by_name
 from evdev import ecodes
 import threading
 from queue import Queue
@@ -124,6 +124,9 @@ class UIManager:
         
         def keyboard_thread():
             kbd = find_keyboard_by_name()
+            if kbd is None:
+                print("ERROR: Keyboard device not found. UI will run without keyboard input.")
+                return
             for e in kbd.read_loop():
                 if e.type == ecodes.EV_KEY:
                     if e.value == 0:  # Key release

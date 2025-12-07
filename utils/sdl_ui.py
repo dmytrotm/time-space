@@ -142,6 +142,9 @@ class SDK_UI_Manager():
         
         def keyboard_thread():
             kbd = find_keyboard_by_name()
+            if kbd is None:
+                print("ERROR: Keyboard device not found. UI will run without keyboard input.")
+                return
             for e in kbd.read_loop():
                 if e.type == ecodes.EV_KEY:
                     if e.value == 0:  # Key release
