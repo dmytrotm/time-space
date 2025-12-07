@@ -26,6 +26,7 @@ from detectors import (
     TapeDetector,
     TapeDeviationDetector,
     WrongOrientation,
+    MissingWiresDetector,
 )
 import cv2
 import json
@@ -35,11 +36,12 @@ import time
 # Error code constants
 ERROR_CODES = {
     "GROUNDING_MISSING": "1",
-    "TAPE_NOT_DETECTED": "2",
-    "TAPE_TOO_FAR": "3",
-    "TAPE_WRONG_LENGTH": "4",
-    "LABEL_NOT_DETECTED": "5",
-    "WRONG_ORIENTATION": "6",
+    "WIRES_MISSING": "2",
+    "TAPE_NOT_DETECTED": "3",
+    "TAPE_TOO_FAR": "4",
+    "TAPE_WRONG_LENGTH": "5",
+    "LABEL_NOT_DETECTED": "6",
+    "WRONG_ORIENTATION": "7",
 }
 
 
@@ -56,6 +58,14 @@ def load_configurations():
 
 def initialize_detectors(roi_data_z1, roi_data_z2, positions):
     """Initialize all detector and processing objects"""
+    # Extract wire color ranges from roi_data_z2 if available
+    wire_color_ranges_path = None
+    if "wires" in roi_data_z2 and isinstance(roi_data_z2["wires"], dict):
+        if "color_ranges" in roi_data_z2["wires"]:
+            # Color ranges are embedded in the config, pass None to use default path
+            # We'll need to pass the ranges directly instead
+            wire_color_ranges_path = None  # Will be handled differently
+    
     return {
         "roi_cropper_z1": ROICropper(roi_data_z1),
         "roi_cropper_z2": ROICropper(roi_data_z2),
@@ -64,6 +74,8 @@ def initialize_detectors(roi_data_z1, roi_data_z2, positions):
         "tape_deviation_detector": TapeDeviationDetector(positions),
         "yolo_roi_mapper": YOLOROIMapper(),
         "branch_wrong_orientation_detector": WrongOrientation(),
+        "missing_wires_detector": MissingWiresDetector(),
+        "roi_data_z2": roi_data_z2,  # Keep roi_data for wire color ranges
     }
 
 
@@ -200,6 +212,24 @@ def create_verification_function(cameras, extractor, roi_data_z1, roi_data_z2, d
                         
                         if LABEL_CLASS_ID not in detected_classes:
                             error_codes.add(ERROR_CODES["LABEL_NOT_DETECTED"])
+                    
+                    elif roi_name.startswith("WIRES"):
+                        # Get expected colors from ROI object
+                        expected_colors = roi_object.get("expected_colors", None)
+                        
+                        # Load color ranges from roi_data_z2 if available
+                        if "roi_data_z2" in detectors and "wires" in detectors["roi_data_z2"]:
+                            wires_config = detectors["roi_data_z2"]["wires"]
+                            if isinstance(wires_config, dict) and "color_ranges" in wires_config:
+                                # Set color ranges from config
+                                detectors["missing_wires_detector"].set_color_ranges_from_dict(wires_config["color_ranges"])
+                        
+                        start_time = time.time()
+                        is_present = detectors["missing_wires_detector"].is_present(roi_image, expected_colors)
+                        timings["missing_wires_detector_time"] = timings.get("missing_wires_detector_time", 0) + time.time() - start_time
+                        if not is_present:
+                            error_codes.add(ERROR_CODES["WIRES_MISSING"])
+
                 
                 # Process orientation detection
                 start_time = time.time()
