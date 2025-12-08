@@ -9,21 +9,27 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from processors.workspace_extractor import WorkspaceExtractor
 
-def display_markers(image_path):
-    if not os.path.exists(image_path):
-        print(f"Error: Image file not found at {image_path}")
-        return
+def display_markers():
 
-    image = cv2.imread(image_path)
+    cap = cv2.VideoCapture(1)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 4000)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 3000)
+
+    ret, image = cap.read()
+    
+    for i in range(4):
+        ret, image = cap.read()
+
+    
     if image is None:
-        print(f"Error: Could not read image from {image_path}")
+        print(f"Error: Could not read image from")
         return
 
     # Initialize extractor with default config
     config_path = os.path.join(os.path.dirname(__file__), '..', 'configs', 'custom_markers.yaml')
     extractor = WorkspaceExtractor(custom_yaml_path=config_path)
     
-    print(f"Detecting markers in {image_path}...")
+    print(f"Detecting markers in ...")
     markers = extractor.detect_markers(image)
     
     print(f"Found {len(markers)} markers.")
@@ -59,7 +65,6 @@ def display_markers(image_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Detect and display custom markers in an image.")
-    parser.add_argument("image_path", help="Path to the input image")
     args = parser.parse_args()
 
-    display_markers(args.image_path)
+    display_markers()
