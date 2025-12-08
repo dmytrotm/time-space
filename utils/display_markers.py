@@ -1,0 +1,65 @@
+import cv2
+import argparse
+import sys
+import os
+import numpy as np
+
+# Add the project root to the python path so we can import from processors
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from processors.workspace_extractor import WorkspaceExtractor
+
+def display_markers(image_path):
+    if not os.path.exists(image_path):
+        print(f"Error: Image file not found at {image_path}")
+        return
+
+    image = cv2.imread(image_path)
+    if image is None:
+        print(f"Error: Could not read image from {image_path}")
+        return
+
+    # Initialize extractor with default config
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'configs', 'custom_markers.yaml')
+    extractor = WorkspaceExtractor(custom_yaml_path=config_path)
+    
+    print(f"Detecting markers in {image_path}...")
+    markers = extractor.detect_markers(image)
+    
+    print(f"Found {len(markers)} markers.")
+
+    for marker in markers:
+        # Draw corners
+        corners = np.array(marker['corners'], dtype=np.int32)
+        cv2.polylines(image, [corners], True, (0, 255, 0), 2)
+        
+        # Draw center
+        center = tuple(map(int, marker['center']))
+        cv2.circle(image, center, 5, (0, 0, 255), -1)
+        
+        # Draw ID and Info
+        text = f"ID: {marker['id']} ({marker['dictionary']})"
+        cv2.putText(image, text, (center[0] + 10, center[1]), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        
+        print(f"Marker ID: {marker['id']}, Dictionary: {marker['dictionary']}, Center: {marker['center']}")
+
+    # Resize for better viewing if image is too large
+    height, width = image.shape[:2]
+    max_height = 800
+    if height > max_height:
+        scale = max_height / height
+        new_width = int(width * scale)
+        image = cv2.resize(image, (new_width, max_height))
+
+    cv2.imshow("Detected Markers", image)
+    print("Press any key to close the window...")
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Detect and display custom markers in an image.")
+    parser.add_argument("image_path", help="Path to the input image")
+    args = parser.parse_args()
+
+    display_markers(args.image_path)

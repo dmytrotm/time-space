@@ -99,10 +99,10 @@ class UIManager:
         if not self.is_running_verification:
             self.is_running_verification = True
             
-            # Capture images in main thread (fast enough usually, or move to thread if slow)
-            # For now, keeping it simple.
             try:
-                images = self.image_server.take_photos()
+                bindings = self.image_server.take_photos()
+                images = [img for img, zone_id in bindings]
+
                 if not images:
                     # Handle no images error immediately
                     # But we are in the UI loop context, so we need to handle state update in main loop

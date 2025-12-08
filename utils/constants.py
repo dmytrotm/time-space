@@ -70,4 +70,5 @@ ERROR_CODES = {
     "TAPE_WRONG_LENGTH": "5",
     "LABEL_NOT_DETECTED": "6",
     "WRONG_ORIENTATION": "7",
+    "TWISTED_WIRES": "8",
 }

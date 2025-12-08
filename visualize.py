@@ -14,26 +14,32 @@ if __name__ == "__main__":
     cameras = ImageServer(
         "dataset/Test_Case2/Z1_0_2.png", "dataset/Test_Case3/Z2_0_2.png"
     )
-    images = cameras.take_photos()
+    results = cameras.take_photos()
 
     extractor = WorkspaceExtractor("configs/custom_markers.yaml")
     roi_cropper_z1 = ROICropper(roi_data_z1)
     roi_cropper_z2 = ROICropper(roi_data_z2)
 
-    if not images:
+    if not results:
         print("No images were loaded. Exiting.")
     else:
-        for i, image in enumerate(images):
-            zone_number = i + 1
+        for i, (image, zone_id) in enumerate(results):
+            print(f"Processing image {i+1}, Detected Zone: {zone_id}")
 
             workspace = extractor.extract_workspace(image)
 
             if workspace is not None:
                 # Select the correct ROI cropper for the zone
-                roi_cropper = roi_cropper_z1 if zone_number == 1 else roi_cropper_z2
+                if zone_id == 1:
+                    roi_cropper = roi_cropper_z1
+                elif zone_id == 2:
+                    roi_cropper = roi_cropper_z2
+                else:
+                    print(f"Unknown zone {zone_id} for image {i+1}. Skipping ROI visualization.")
+                    continue
 
                 # Print available categories for debugging
-                print(f"\nZone {zone_number} - Available categories:")
+                print(f"\nZone {zone_id} - Available categories:")
                 for category in roi_cropper.roi_objects.keys():
                     count = len(roi_cropper.roi_objects[category])
                     print(f"  - '{category}' ({count} ROIs)")
@@ -43,9 +49,9 @@ if __name__ == "__main__":
                 # Draw only wire ROIs in green
                 visualizer.draw_rois_by_category(roi_cropper, "wires", color=GREEN)
 
-                cv2.imshow(f"Zone {zone_number} Visualizations", visualizer.get_image())
+                cv2.imshow(f"Zone {zone_id} Visualizations", visualizer.get_image())
             else:
-                print(f"Workspace for Zone {zone_number} could not be extracted.")
+                print(f"Workspace for Zone {zone_id} could not be extracted.")
 
         cv2.waitKey(0)
         cv2.destroyAllWindows()

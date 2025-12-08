@@ -14,9 +14,7 @@ class WorkspaceExtractor:
         self.load_dictionaries()
 
     def load_dictionaries(self):
-        aruco_dict_list = {
-            "DICT_6X6_250": aruco.DICT_6X6_250,
-        }
+        aruco_dict_list = {}
 
         all_dicts = {}
 
@@ -31,13 +29,8 @@ class WorkspaceExtractor:
             try:
                 fs = cv2.FileStorage(self.custom_yaml_path, cv2.FILE_STORAGE_READ)
                 if fs.isOpened():
-                    dict_names = [
-                        "cust_dictionary4",
-                        "cust_dictionary5",
-                        "cust_dictionary6",
-                        "cust_dictionary8",
-                    ]
-                    for name in dict_names:
+                    root = fs.root()
+                    for name in root.keys():
                         dict_node = fs.getNode(name)
                         if not dict_node.empty():
                             try:
@@ -67,6 +60,7 @@ class WorkspaceExtractor:
                 parameters.markerBorderBits = border
                 detector = aruco.ArucoDetector(aruco_dict, parameters)
                 self.detectors.append((name, border, detector))
+                print(f"Added detector: {name}, Border: {border}, Size: {aruco_dict.markerSize}")
 
         self.logger.info(f"Total detectors created: {len(self.detectors)}")
 
@@ -110,10 +104,10 @@ class WorkspaceExtractor:
 
         marker_groups = {}
         for marker in markers:
-            marker_id = marker["id"]
-            if marker_id not in marker_groups:
-                marker_groups[marker_id] = []
-            marker_groups[marker_id].append(marker)
+            marker_key = (marker["dictionary"], marker["id"])
+            if marker_key not in marker_groups:
+                marker_groups[marker_key] = []
+            marker_groups[marker_key].append(marker)
 
         unique_markers = []
         for marker_id, group in marker_groups.items():
