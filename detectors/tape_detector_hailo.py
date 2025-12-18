@@ -158,7 +158,7 @@ class TapeDetectorHailo(BaseDetector):
 
         input_name = self.input_vstream_info.name
         res = self.pipeline.infer({input_name: batch_numpy})
-        
+        print(res)
         output_name = list(res.keys())[0]
         raw_output = res[output_name]
         
