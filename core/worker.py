@@ -6,6 +6,7 @@ from core.timing import TimingLogger
 from detectors import (
     GroundingWireDetector,
     TapeDetector,
+    TapeDetectorHailo,
     TapeDeviationDetector,
     WrongOrientation,
     MissingWiresDetector,
@@ -134,14 +135,15 @@ def worker_logic(command_queue, result_queue, config_paths):
             roi_data_z2 = json.load(f)
         with open(config_paths["positions"], "r") as f:
             positions = json.load(f)
+        with open(config_paths["env"], "r") as f:
+            env = json.load(f)    
+        tape_detector = TapeDetectorHailo(conf_threshold=TAPE_DETECTOR_CONF_THRESHOLD) if env["use_hailo"] else TapeDetector(conf_threshold=TAPE_DETECTOR_CONF_THRESHOLD)
 
-        # Initialize Detectors & Tools
-        # Note: Heavy models (YOLO) are loaded here, inside the worker process.
         detectors = {
             "roi_cropper_z1": ROICropper(roi_data_z1),
             "roi_cropper_z2": ROICropper(roi_data_z2),
             "grounding_detector": GroundingWireDetector(),
-            "tape_detector": TapeDetector(conf_threshold=TAPE_DETECTOR_CONF_THRESHOLD),
+            "tape_detector": tape_detector,
             "tape_deviation_detector": TapeDeviationDetector(positions),
             "yolo_roi_mapper": YOLOROIMapper(),
             "branch_wrong_orientation_detector": WrongOrientation(),

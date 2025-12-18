@@ -4,11 +4,13 @@ from detectors.tape_detector import TapeDetector
 from detectors.tape_deviation_detector import TapeDeviationDetector
 from detectors.branch_wrong_orientation import WrongOrientation
 from detectors.twisted_wires import TwistedWires
+from detectors.tape_detector_hailo import TapeDetectorHailo
 
 __all__ = [
     "GroundingWireDetector",
     "MissingWiresDetector",
     "TapeDetector",
+    "TapeDetectorHailo",
     "TapeDeviationDetector",
     "WrongOrientation",
     "TwistedWires",

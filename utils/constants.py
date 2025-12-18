@@ -37,6 +37,7 @@ CONFIG_ROI_Z1_PATH = "configs/rois_z1.json"
 CONFIG_ROI_Z2_PATH = "configs/rois_z2.json"
 CONFIG_POSITIONS_PATH = "configs/positions.json"
 WORKSPACE_EXTRACTOR_CONFIG = "configs/custom_markers.yaml"
+ENVIRONMENT_CONFIG = "configs/env.json"
 
 # Inspection Window Constants
 NAV_BUTTON_WIDTH = 60
