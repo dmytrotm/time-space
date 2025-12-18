@@ -24,7 +24,6 @@ class YoloLikeBoxes:
             self.xyxy = self.data[:, :4]
             self.conf = self.data[:, 4]
             self.cls = self.data[:, 5]
-            print(self.cls)
             # Розрахунок координат
             self.xywh = self._xyxy2xywh(self.xyxy)
             self.xywhn = self._xywh2xywhn(self.xywh, self.orig_shape)
@@ -34,6 +33,8 @@ class YoloLikeBoxes:
             self.cls = np.empty((0,), dtype=np.float32)
             self.xywh = np.empty((0, 4), dtype=np.float32)
             self.xywhn = np.empty((0, 4), dtype=np.float32)
+        
+        print(self.cls)
 
     def _xyxy2xywh(self, x):
         y = np.copy(x)
@@ -171,6 +172,7 @@ class TapeDetectorHailo(BaseDetector):
         
         final_results = []
         for i, img_raw_result in enumerate(raw_output):
+            print(img_raw_result)
             orig_img = original_images[i]
             orig_h, orig_w = orig_img.shape[:2]
             
