@@ -6,16 +6,22 @@ from processors.preprocess import Preprocessor
 from detectors.base_detector import BaseDetector
 
 
+import numpy as np
+
 class YoloLikeBoxes:
     """Клас, що імітує result.boxes з Ultralytics"""
     def __init__(self, boxes_array, orig_shape):
         self.data = boxes_array 
         self.orig_shape = orig_shape
         
-        if len(boxes_array) > 0:
-            self.xyxy = boxes_array[:, :4] # Координати
-            self.conf = boxes_array[:, 4]  # Впевненість
-            self.cls = boxes_array[:, 5]   # ID класу
+        # Обробка випадку, коли масив порожній або має неправильну розмірність
+        if self.data.ndim == 1 and len(self.data) > 0:
+             self.data = self.data[np.newaxis, :]
+
+        if len(self.data) > 0:
+            self.xyxy = self.data[:, :4] # Координати
+            self.conf = self.data[:, 4]  # Впевненість
+            self.cls = self.data[:, 5]   # ID класу
             self.xywh = self._xyxy2xywh(self.xyxy) 
         else:
             self.xyxy = np.empty((0, 4))
@@ -28,16 +34,46 @@ class YoloLikeBoxes:
         y = np.copy(x)
         y[:, 0] = (x[:, 0] + x[:, 2]) / 2  # x center
         y[:, 1] = (x[:, 1] + x[:, 3]) / 2  # y center
-        y[:, 2] = x[:, 2] - x[:, 0]  # width
-        y[:, 3] = x[:, 3] - x[:, 1]  # height
+        y[:, 2] = x[:, 2] - x[:, 0]        # width
+        y[:, 3] = x[:, 3] - x[:, 1]        # height
         return y
     
     def cpu(self):
-        """Метод-заглушка, бо YOLO часто викликає .cpu().numpy()"""
+        """Метод-заглушка"""
         return self
     
     def numpy(self):
         return self.data
+    
+    # --- НОВІ МЕТОДИ ДЛЯ ІТЕРАЦІЇ ---
+    
+    def __len__(self):
+        """Дозволяє використовувати len(results.boxes)"""
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        """
+        Дозволяє використовувати:
+        1. for box in results.boxes
+        2. box = results.boxes[0]
+        """
+        # Отримуємо дані для конкретного індексу (або зрізу)
+        sub_data = self.data[idx]
+        
+        # Якщо idx це int (один рядок), numpy поверне 1D масив (6,).
+        # Нам треба повернути його в 2D (1, 6), щоб конструктор спрацював коректно 
+        # і зберіг структуру атрибутів (.xyxy тощо).
+        if isinstance(idx, int):
+            sub_data = sub_data[np.newaxis, :]
+            
+        # Повертаємо новий об'єкт цього ж класу, що містить лише вибрані дані
+        return YoloLikeBoxes(sub_data, self.orig_shape)
+
+    def __iter__(self):
+        """Явна підтримка ітерації"""
+        for i in range(len(self)):
+            yield self[i]
+
     def __repr__(self):
         return f"ultralytics.engine.results.Boxes object with shape {self.data.shape}"
 
@@ -50,7 +86,7 @@ class YoloLikeResult:
         self.boxes = YoloLikeBoxes(boxes_array, self.orig_shape)
         
     def __len__(self):
-        return len(self.boxes.data)
+        return len(self.boxes)
     def __repr__(self):
         """Робимо вивід ідентичним до Ultralytics"""
         return (
