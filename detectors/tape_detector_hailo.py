@@ -2,8 +2,8 @@ import numpy as np
 import cv2
 from hailo_platform import (HEF, VDevice, HailoStreamInterface, InferVStreams, 
                             ConfigureParams, InputVStreamParams, OutputVStreamParams, FormatType)
-from preprocess import Preprocessor
-from base_detector import BaseDetector
+from processors.preprocess import Preprocessor
+from detectors.base_detector import BaseDetector
 
 
 class YoloLikeBoxes:
