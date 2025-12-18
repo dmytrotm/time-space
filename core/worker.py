@@ -312,7 +312,7 @@ def worker_logic(command_queue, result_queue, config_paths):
                         for result in roi_results:
                             # Unpack based on updated _preprocess_roi return
                             roi_name, roi_image, roi_config, zone_number = result
-
+                            print(roi_name)
                             if roi_image is None:
                                 continue
 
