@@ -34,7 +34,6 @@ class YoloLikeBoxes:
             self.xywh = np.empty((0, 4), dtype=np.float32)
             self.xywhn = np.empty((0, 4), dtype=np.float32)
         
-        print(self.cls)
 
     def _xyxy2xywh(self, x):
         y = np.copy(x)
