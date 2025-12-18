@@ -179,7 +179,7 @@ class TapeDetectorHailo(BaseDetector):
             # Створюємо об'єкт з підтримкою .boxes.xywhn
             result_obj = YoloLikeResult(orig_img, parsed_boxes, self.labels_map)
             final_results.append(result_obj)
-            
+        print(final_results)    
         return final_results
 
     def _parse_to_yolo_format(self, class_list, orig_w, orig_h):
@@ -189,7 +189,6 @@ class TapeDetectorHailo(BaseDetector):
             return np.empty((0, 6), dtype=np.float32)
 
         for class_id, class_boxes in enumerate(class_list):
-            print(class_id)
             if class_boxes is None or len(class_boxes) == 0:
                 continue
             
