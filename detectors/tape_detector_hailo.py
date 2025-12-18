@@ -171,7 +171,6 @@ class TapeDetectorHailo(BaseDetector):
         
         final_results = []
         for i, img_raw_result in enumerate(raw_output):
-            print(img_raw_result)
             orig_img = original_images[i]
             orig_h, orig_w = orig_img.shape[:2]
             
