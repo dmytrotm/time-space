@@ -43,7 +43,7 @@ if __name__ == "__main__":
             print("  - Cameras are connected")
             print("  - Camera permissions (try: sudo usermod -a -G video $USER)")
             print("  - V4L2 drivers are installed")
-            exit(1)
+            #exit(1)
         
         print(f"\nAvailable cameras: {available_cameras}")
         
@@ -55,12 +55,12 @@ if __name__ == "__main__":
                 print(f"Using first two available cameras: {args.camera_ids}")
             else:
                 print(f"ERROR: Need at least 2 cameras, only found {len(available_cameras)}")
-                exit(1)
+                #exit(1)
         
         # Initialize ImageServer with cameras
         print(f"\nInitializing cameras: {args.camera_ids}")
-        cameras = ImageServer(use_cameras=True, camera_ids=args.camera_ids)
-        
+        #cameras = ImageServer(use_cameras=True, camera_ids=args.camera_ids)
+        cameras = ImageServer("Z1_0_1.png","Z2_0_1.png")
         # Setup cameras and detect zones
         setup_success = cameras.setup()
         if not setup_success:

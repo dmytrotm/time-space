@@ -12,71 +12,72 @@ class YoloLikeBoxes:
     """Клас, що імітує result.boxes з Ultralytics"""
     def __init__(self, boxes_array, orig_shape):
         self.data = boxes_array 
+        # orig_shape очікується як (Height, Width)
         self.orig_shape = orig_shape
         
-        # Обробка випадку, коли масив порожній або має неправильну розмірність
+        # Виправляємо розмірність для правильної роботи numpy
         if self.data.ndim == 1 and len(self.data) > 0:
              self.data = self.data[np.newaxis, :]
 
         if len(self.data) > 0:
-            self.xyxy = self.data[:, :4] # Координати
+            self.xyxy = self.data[:, :4] # Координати (x1, y1, x2, y2)
             self.conf = self.data[:, 4]  # Впевненість
             self.cls = self.data[:, 5]   # ID класу
-            self.xywh = self._xyxy2xywh(self.xyxy) 
+            
+            # Абсолютні координати (пікселі)
+            self.xywh = self._xyxy2xywh(self.xyxy)
+            
+            # --- ВИПРАВЛЕННЯ ТУТ ---
+            # Нормалізовані координати (0.0 - 1.0)
+            self.xywhn = self._xywh2xywhn(self.xywh, self.orig_shape)
         else:
             self.xyxy = np.empty((0, 4))
             self.conf = np.empty((0,))
             self.cls = np.empty((0,))
             self.xywh = np.empty((0, 4))
+            self.xywhn = np.empty((0, 4))
 
     def _xyxy2xywh(self, x):
-        # Конвертація для сумісності
+        # Перетворення x1y1x2y2 -> xywh (center_x, center_y, width, height)
         y = np.copy(x)
         y[:, 0] = (x[:, 0] + x[:, 2]) / 2  # x center
         y[:, 1] = (x[:, 1] + x[:, 3]) / 2  # y center
         y[:, 2] = x[:, 2] - x[:, 0]        # width
         y[:, 3] = x[:, 3] - x[:, 1]        # height
         return y
+
+    def _xywh2xywhn(self, x, shape):
+        # Перетворення пікселів у нормалізовані значення (0-1)
+        y = np.copy(x)
+        h, w = shape # shape зазвичай (Height, Width)
+        
+        # Захист від ділення на нуль
+        if w > 0 and h > 0:
+            y[:, 0] /= w  # x center / width
+            y[:, 2] /= w  # width / width
+            y[:, 1] /= h  # y center / height
+            y[:, 3] /= h  # height / height
+        return y
     
-    def cpu(self):
-        """Метод-заглушка"""
-        return self
-    
-    def numpy(self):
-        return self.data
-    
-    # --- НОВІ МЕТОДИ ДЛЯ ІТЕРАЦІЇ ---
+    def cpu(self): return self
+    def numpy(self): return self.data
     
     def __len__(self):
-        """Дозволяє використовувати len(results.boxes)"""
         return len(self.data)
 
     def __getitem__(self, idx):
-        """
-        Дозволяє використовувати:
-        1. for box in results.boxes
-        2. box = results.boxes[0]
-        """
-        # Отримуємо дані для конкретного індексу (або зрізу)
         sub_data = self.data[idx]
-        
-        # Якщо idx це int (один рядок), numpy поверне 1D масив (6,).
-        # Нам треба повернути його в 2D (1, 6), щоб конструктор спрацював коректно 
-        # і зберіг структуру атрибутів (.xyxy тощо).
         if isinstance(idx, int):
             sub_data = sub_data[np.newaxis, :]
-            
-        # Повертаємо новий об'єкт цього ж класу, що містить лише вибрані дані
         return YoloLikeBoxes(sub_data, self.orig_shape)
 
     def __iter__(self):
-        """Явна підтримка ітерації"""
         for i in range(len(self)):
             yield self[i]
 
     def __repr__(self):
         return f"ultralytics.engine.results.Boxes object with shape {self.data.shape}"
-
+        
 class YoloLikeResult:
     """Клас, що імітує основний об'єкт Results"""
     def __init__(self, original_img, boxes_array, names_dict):
