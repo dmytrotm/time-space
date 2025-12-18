@@ -77,7 +77,7 @@ class YoloLikeBoxes:
 
     def __repr__(self):
         return f"ultralytics.engine.results.Boxes object with shape {self.data.shape}"
-        
+
 class YoloLikeResult:
     """Клас, що імітує основний об'єкт Results"""
     def __init__(self, original_img, boxes_array, names_dict):
@@ -103,7 +103,7 @@ class YoloLikeResult:
 class TapeDetectorHailo(BaseDetector): 
     def __init__(self, model_path="models/tape_detector.hef", conf_threshold=0.25):
         self.hef_path = model_path
-        self.labels_map = {0: "Tape", 1: "Label"} 
+        self.labels_map = {1: "Tape", 0: "Label"} 
         self.conf_threshold = conf_threshold
         self.preprocess = Preprocessor()
         print(f"[Hailo] Init Detector: {self.hef_path}")
