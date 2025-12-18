@@ -17,6 +17,7 @@ from utils.constants import (
     TAPE_DETECTOR_CONF_THRESHOLD,
     TAPE_CLASS_ID,
     LABEL_CLASS_ID,
+    CONNECTOR_CLASS_ID,
     TAPE_DEVIATION_TOO_FAR,
     TAPE_DEVIATION_WRONG_LENGTH,
     WORKSPACE_EXTRACTOR_CONFIG,
@@ -370,15 +371,16 @@ def worker_logic(command_queue, result_queue, config_paths):
 
                             elif roi_name.startswith("TAPE") or roi_name.startswith(
                                 "LABEL"
-                            ):
+                            )  or roi_name.startswith("CONNECTORS") :
                                 tape_batch_images.append(roi_image)
+                                print(roi_name,roi_id)
                                 tape_batch_metadata.append(
                                     {
                                         "zone": zone_number,
                                         "type": (
                                             "TAPE"
                                             if roi_name.startswith("TAPE")
-                                            else "LABEL"
+                                            else "LABEL" if roi_name.startswith("LABEL") else "CONNECTORS"
                                         ),
                                         "id": roi_id,
                                         "name": roi_name,
@@ -457,6 +459,12 @@ def worker_logic(command_queue, result_queue, config_paths):
                                     if LABEL_CLASS_ID not in detected_classes:
                                         error_codes.add(
                                             ERROR_CODES["LABEL_NOT_DETECTED"]
+                                        )
+                                elif roi_type == "CONNECTORS":
+                                    # CONNECTOR_CLASS_ID
+                                    if CONNECTOR_CLASS_ID not in detected_classes:
+                                        error_codes.add(
+                                            ERROR_CODES["WRONG_ORIENTATION"]
                                         )
 
                         # 4. Orientation Check (Parallelized)
