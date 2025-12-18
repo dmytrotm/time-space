@@ -24,7 +24,7 @@ class YoloLikeBoxes:
             self.xyxy = self.data[:, :4]
             self.conf = self.data[:, 4]
             self.cls = self.data[:, 5]
-            
+            print(self.cls)
             # Розрахунок координат
             self.xywh = self._xyxy2xywh(self.xyxy)
             self.xywhn = self._xywh2xywhn(self.xywh, self.orig_shape)
@@ -179,7 +179,6 @@ class TapeDetectorHailo(BaseDetector):
             # Створюємо об'єкт з підтримкою .boxes.xywhn
             result_obj = YoloLikeResult(orig_img, parsed_boxes, self.labels_map)
             final_results.append(result_obj)
-        print(final_results)    
         return final_results
 
     def _parse_to_yolo_format(self, class_list, orig_w, orig_h):
