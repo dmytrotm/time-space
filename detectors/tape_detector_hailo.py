@@ -204,8 +204,8 @@ class TapeDetectorHailo(BaseDetector):
                 y1 = ymin * orig_h
                 x2 = xmax * orig_w
                 y2 = ymax * orig_h
-
-                detections.append([x1, y1, x2, y2, score, float(class_id)])
+                print(class_id)
+                detections.append([x1, y1, x2, y2, score, int(class_id)])
 
         if not detections:
              return np.empty((0, 6), dtype=np.float32)
