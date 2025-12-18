@@ -189,6 +189,7 @@ class TapeDetectorHailo(BaseDetector):
             return np.empty((0, 6), dtype=np.float32)
 
         for class_id, class_boxes in enumerate(class_list):
+            print(class_id)
             if class_boxes is None or len(class_boxes) == 0:
                 continue
             
@@ -204,7 +205,7 @@ class TapeDetectorHailo(BaseDetector):
                 y1 = ymin * orig_h
                 x2 = xmax * orig_w
                 y2 = ymax * orig_h
-                print(class_id)
+                
                 detections.append([x1, y1, x2, y2, score, int(class_id)])
 
         if not detections:
