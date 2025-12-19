@@ -216,29 +216,29 @@ def worker_logic(command_queue, result_queue, config_paths):
                             continue
 
                         # 1.5. Twisted Wires Detection (on workspace images)
-                        timer.start("twisted_wires_detection_total")
-                        twisted_wires_tasks = []
-                        for zone_number, workspace in workspaces:
-                            # Convert BGR to RGB for the detector
-                            workspace_rgb = cv2.cvtColor(workspace, cv2.COLOR_BGR2RGB)
-                            twisted_wires_tasks.append(
-                                (
-                                    workspace_rgb,
-                                    detectors["twisted_wires_detector"],
-                                    zone_number,
-                                )
-                            )
-
-                        twisted_wires_results = list(
-                            executor.map(
-                                _twisted_wires_check_helper, twisted_wires_tasks
-                            )
-                        )
-                        timer.stop("twisted_wires_detection_total")
-
-                        for zone_number, is_twisted in twisted_wires_results:
-                            if is_twisted:
-                                error_codes.add(ERROR_CODES["TWISTED_WIRES"])
+                        #timer.start("twisted_wires_detection_total")
+                        #twisted_wires_tasks = []
+                        #for zone_number, workspace in workspaces:
+                        #    # Convert BGR to RGB for the detector
+                        #    workspace_rgb = cv2.cvtColor(workspace, cv2.COLOR_BGR2RGB)
+                        #    twisted_wires_tasks.append(
+                        #        (
+                        #            workspace_rgb,
+                        #            detectors["twisted_wires_detector"],
+                        #            zone_number,
+                        #        )
+                        #    )
+#
+ #                       twisted_wires_results = list(
+  #                          executor.map(
+   #                             _twisted_wires_check_helper, twisted_wires_tasks
+    #                        )
+      #                  )
+     #                   timer.stop("twisted_wires_detection_total")
+#
+ #                       for zone_number, is_twisted in twisted_wires_results:
+  #                          if is_twisted:
+   #                             error_codes.add(ERROR_CODES["TWISTED_WIRES"])
 
                         # 2. Batch Preparation & Parallel Processing
                         tape_batch_images = []
@@ -427,22 +427,22 @@ def worker_logic(command_queue, result_queue, config_paths):
                                         
                                         
                                             
-                                    if roi_id not in annotations_per_zone[zone]:
-                                        annotations_per_zone[zone][roi_id] = []
+                                    #if roi_id not in annotations_per_zone[zone]:
+                                    #    annotations_per_zone[zone][roi_id] = []
 
                                     for box_data in result.boxes:
                                         x_center, y_center, width, height = (
                                             box_data.xywhn[0]
                                         )
-                                        annotations_per_zone[zone][roi_id].append(
-                                            [
-                                                int(box_data.cls[0]),
-                                                x_center.item(),
-                                                y_center.item(),
-                                                width.item(),
-                                                height.item(),
-                                            ]
-                                        )
+                                        #annotations_per_zone[zone][roi_id].append(
+                                        #    [
+                                        #        int(box_data.cls[0]),
+                                        #        x_center.item(),
+                                        #        y_center.item(),
+                                        #        width.item(),
+                                         #       height.item(),
+                                         #   ]
+                                        #)
 
                                         try:
                                             correct = detectors[
@@ -472,46 +472,46 @@ def worker_logic(command_queue, result_queue, config_paths):
                                         )
 
                         # 4. Orientation Check (Parallelized)
-                        orientation_tasks = []
+                        #orientation_tasks = []
 
-                        timer.start("yolo_roi_mapper_total")
-                        for zone_number, data in roi_map_per_zone.items():
-                            workspace = data["workspace"]
-                            roi_data = data["roi_data"]
-                            annotations = annotations_per_zone.get(zone_number, {})
+                        #timer.start("yolo_roi_mapper_total")
+                        #for zone_number, data in roi_map_per_zone.items():
+                           # workspace = data["workspace"]
+                           # roi_data = data["roi_data"]
+                            #annotations = annotations_per_zone.get(zone_number, {})
 
                             # This part is fast enough to keep sequential or parallelize?
                             # It crops images based on YOLO results.
-                            new_rois_images, _ = detectors[
-                                "yolo_roi_mapper"
-                            ].get_images(workspace, annotations, roi_data)
+                           # new_rois_images, _ = detectors[
+                           #     "yolo_roi_mapper"
+                            #].get_images(workspace, annotations, roi_data)
 
-                            if new_rois_images:
-                                for r_name, r_image in new_rois_images.items():
-                                    orientation_tasks.append(
-                                        (
-                                            r_image,
-                                            detectors[
-                                                "branch_wrong_orientation_detector"
-                                            ],
-                                            r_name,
-                                            zone_number,
-                                        )
-                                    )
-                        timer.stop("yolo_roi_mapper_total")
+                            #if new_rois_images:
+                             #   for r_name, r_image in new_rois_images.items():
+                            #        orientation_tasks.append(
+                             #           (
+                             #               r_image,
+                             #               detectors[
+                              #                  "branch_wrong_orientation_detector"
+                              #              ],
+                               #             r_name,
+                                #            zone_number,
+                               #         )
+                              #      )
+                        #timer.stop("yolo_roi_mapper_total")
 
-                        if orientation_tasks:
-                            timer.start("branch_wrong_orientation_detector_total")
-                            orientation_results = list(
-                                executor.map(
-                                    _orientation_check_helper, orientation_tasks
-                                )
-                            )
-                            timer.stop("branch_wrong_orientation_detector_total")
-
-                            for r_name, zone_number, is_wrong in orientation_results:
-                                if is_wrong:
-                                    error_codes.add(ERROR_CODES["WRONG_ORIENTATION"])
+                        #if orientation_tasks:
+                         #   timer.start("branch_wrong_orientation_detector_total")
+                          #  orientation_results = list(
+                          #      executor.map(
+                         #           _orientation_check_helper, orientation_tasks
+                          #      )
+                          #  )
+                          #  timer.stop("branch_wrong_orientation_detector_total")
+#
+                          #  for r_name, zone_number, is_wrong in orientation_results:
+                          #      if is_wrong:
+                          #          error_codes.add(ERROR_CODES["WRONG_ORIENTATION"])
                                 # Log individual times? We only have total now.
                                 # timer.add(f"orientation_detector_{r_name}_z{zone_number}", ...)
 
