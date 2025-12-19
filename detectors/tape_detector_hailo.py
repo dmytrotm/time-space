@@ -75,6 +75,8 @@ class YoloLikeBoxes:
     def __repr__(self):
         return f"ultralytics.engine.results.Boxes object with shape {self.data.shape}"
 
+    
+
 
 class YoloLikeResult:
     """Клас, що імітує основний об'єкт Results"""
@@ -110,7 +112,7 @@ class TapeDetectorHailo(BaseDetector):
         self.hef_path = model_path
         # Переконайтесь, що ID відповідають вашій логіці (0 - це Label чи Tape?)
         # Зазвичай Hailo сортує класи за алфавітом, якщо не вказано інше при компіляції
-        self.labels_map = {1: "Tape", 0: "Label"} 
+        self.labels_map = {2:"Label",1: "Tape", 0: "Connector"} 
         self.conf_threshold = conf_threshold
         self.preprocess = Preprocessor()
         print(f"[Hailo] Init Detector: {self.hef_path}")
@@ -135,7 +137,7 @@ class TapeDetectorHailo(BaseDetector):
         elif len(shape) == 4:
             self.model_h, self.model_w = shape[1], shape[2]
         else:
-            self.model_h, self.model_w = 640, 640
+            self.model_h, self.model_w = 576, 576
 
         self.network_ctx = self.network_group.activate()
         self.network_ctx.__enter__()

@@ -313,7 +313,6 @@ def worker_logic(command_queue, result_queue, config_paths):
                         for result in roi_results:
                             # Unpack based on updated _preprocess_roi return
                             roi_name, roi_image, roi_config, zone_number = result
-                            print(roi_name)
                             if roi_image is None:
                                 continue
 
@@ -373,7 +372,6 @@ def worker_logic(command_queue, result_queue, config_paths):
                                 "LABEL"
                             )  or roi_name.startswith("CONNECTORS") :
                                 tape_batch_images.append(roi_image)
-                                print(roi_name,roi_id)
                                 tape_batch_metadata.append(
                                     {
                                         "zone": zone_number,
@@ -417,12 +415,18 @@ def worker_logic(command_queue, result_queue, config_paths):
 
                                 if roi_type == "TAPE":
                                     if TAPE_CLASS_ID not in detected_classes:
-                                        print(detected_classes)
                                         error_codes.add(
                                             ERROR_CODES["TAPE_NOT_DETECTED"]
                                         )
                                         continue
 
+                                    if roi_id == 2 and CONNECTOR_CLASS_ID in detected_classes:
+                                        error_codes.add(
+                                            ERROR_CODES["WRONG_ORIENTATION"]
+                                        )
+                                        
+                                        
+                                            
                                     if roi_id not in annotations_per_zone[zone]:
                                         annotations_per_zone[zone][roi_id] = []
 
