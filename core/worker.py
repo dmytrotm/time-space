@@ -415,6 +415,7 @@ def worker_logic(command_queue, result_queue, config_paths):
 
                                 if roi_type == "TAPE":
                                     if TAPE_CLASS_ID not in detected_classes:
+                                        print(roi_id, detected_classes)
                                         error_codes.add(
                                             ERROR_CODES["TAPE_NOT_DETECTED"]
                                         )
