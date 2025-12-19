@@ -112,7 +112,7 @@ class TapeDetectorHailo(BaseDetector):
         self.hef_path = model_path
         # Переконайтесь, що ID відповідають вашій логіці (0 - це Label чи Tape?)
         # Зазвичай Hailo сортує класи за алфавітом, якщо не вказано інше при компіляції
-        self.labels_map = {2:"Label",1: "Tape", 0: "Connector"} 
+        self.labels_map = {1:"Label" ,2: "Tape", 0: "Connector"} 
         self.conf_threshold = conf_threshold
         self.preprocess = Preprocessor()
         print(f"[Hailo] Init Detector: {self.hef_path}")
