@@ -199,6 +199,7 @@ class TapeDetectorHailo(BaseDetector):
                 ymin, xmin, ymax, xmax, score = box
                 
                 if score < self.conf_threshold:
+                    print(score,class_id)
                     continue
                 
                 x1 = xmin * orig_w
