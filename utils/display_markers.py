@@ -13,7 +13,8 @@ from processors.aruco_detector import aruco_factory
 
 def display_markers():
 
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 4000)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 3000)
 
@@ -32,7 +33,7 @@ def display_markers():
     extractor = WorkspaceExtractor(aruco_factory(config_path))
     
     print(f"Detecting markers in ...")
-    markers = extractor.detect_markers(image)
+    markers = extractor.aruco_detector.detect_markers(image)
     
     print(f"Found {len(markers)} markers.")
 
