@@ -1,7 +1,8 @@
 import cv2
 import os
 import time
-from processors.workspace_extractor import WorkspaceExtractor
+from processors import WorkspaceExtractor, aruco_factory
+
 
 class ImageServer:
     def __init__(self, *image_paths, use_cameras=False, camera_ids=None):
@@ -21,7 +22,8 @@ class ImageServer:
         
         # Use absolute path or relative to project root
         config_path = os.path.join(os.path.dirname(__file__), '..', 'configs', 'custom_markers.yaml')
-        self.extractor = WorkspaceExtractor(custom_yaml_path=config_path)
+        detector = aruco_factory(custom_yaml_path=config_path)
+        self.extractor = WorkspaceExtractor(detector)
         
         # Initialize cameras if needed
         if self.use_cameras:

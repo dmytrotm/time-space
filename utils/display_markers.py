@@ -8,6 +8,8 @@ import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from processors.workspace_extractor import WorkspaceExtractor
+from processors.aruco_detector import aruco_factory
+
 
 def display_markers():
 
@@ -27,7 +29,7 @@ def display_markers():
 
     # Initialize extractor with default config
     config_path = os.path.join(os.path.dirname(__file__), '..', 'configs', 'custom_markers.yaml')
-    extractor = WorkspaceExtractor(custom_yaml_path=config_path)
+    extractor = WorkspaceExtractor(aruco_factory(config_path))
     
     print(f"Detecting markers in ...")
     markers = extractor.detect_markers(image)
