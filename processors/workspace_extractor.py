@@ -4,6 +4,7 @@ import numpy as np
 import os
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from processors.aruco_detector import IArucoDetector
 
 
 class WorkspaceExtractor:
