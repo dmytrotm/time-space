@@ -21,7 +21,7 @@ def display_markers():
 
     for _ in range(4): cap.read()
 
-    extractor = WorkspaceExtractor(aruco_factory(track_time=False))
+    extractor = WorkspaceExtractor(aruco_factory(resize_for_speed=Fasle))
 
     sdl2.ext.init()
     window_width, window_height = 1280, 720  
@@ -47,7 +47,6 @@ def display_markers():
 
         ret, image = cap.read()
         if not ret: break
-        image = cv2.resize(image, (800, 600), fx=0, fy=0, interpolation=cv2.INTER_LINEAR)
 
         markers = extractor.aruco_detector.detect_markers(image)
         

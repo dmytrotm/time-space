@@ -10,13 +10,18 @@ class IArucoDetector:
     def detect_markers(self, image):
         pass
 
-def aruco_factory(custom_yaml_path=None, track_time=True):
+def aruco_factory(custom_yaml_path=None, track_time=True, resize_for_speed=True):
     if custom_yaml_path:
-        detector =  CustomArucoDetector(custom_yaml_path)
+        detector = CustomArucoDetector(custom_yaml_path)
     else:
         detector = ArucoDetector()
+        
+    if resize_for_speed:
+        detector = ArucoDetectorResizer(detector, target_size=(800, 600))
+        
     if track_time:
         detector = ArucoDetectorTime(detector)
+        
     return detector
 
 
@@ -185,3 +190,33 @@ class ArucoDetectorTime(IArucoDetector):
         print(f"[DEBUG] Detection time: {execution_time:.4f} seconds")
         
         return result
+
+class ArucoDetectorResizer(IArucoDetector):
+    def __init__(self, detector: IArucoDetector, target_size=(800, 600)):
+        self._detector = detector
+        self.target_width = target_size[0]
+        self.target_height = target_size[1]
+
+    def detect_markers(self, image):
+        orig_height, orig_width = image.shape[:2]
+
+        scale_x = orig_width / self.target_width
+        scale_y = orig_height / self.target_height
+
+        resized_image = cv2.resize(image, (self.target_width, self.target_height))
+
+        markers = self._detector.detect_markers(resized_image)
+
+        for marker in markers:
+            corners_np = np.array(marker["corners"], dtype=np.float32)
+            corners_np[..., 0] *= scale_x
+            corners_np[..., 1] *= scale_y
+            marker["corners"] = corners_np.tolist()
+
+            cx, cy = marker["center"]
+            marker["center"] = (cx * scale_x, cy * scale_y)
+
+            if "area" in marker:
+                marker["area"] *= (scale_x * scale_y)
+
+        return markers
