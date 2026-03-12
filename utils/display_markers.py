@@ -47,6 +47,7 @@ def display_markers():
 
         ret, image = cap.read()
         if not ret: break
+        image = cv2.resize(image, (800, 600), fx=0, fy=0, interpolation=cv2.INTER_LINEAR)
 
         markers = extractor.aruco_detector.detect_markers(image)
         
