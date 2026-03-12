@@ -55,7 +55,7 @@ def display_workspace():
             break
 
         id, workspace_image = extractor.extract_workspace(image)
-        pirnt(id)
+        print(id)
         if workspace_image is not None:
             display_img = workspace_image
             cv2.putText(display_img, f"Workspace Active | FPS: {fps:.1f}", (30, 80), 
