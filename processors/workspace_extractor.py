@@ -1,32 +1,58 @@
 import cv2
-import cv2.aruco as aruco
 import numpy as np
-import os
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from processors.aruco_detector import IArucoDetector
 
-
 class WorkspaceExtractor:
-    def __init__(self, aruco_detector: IArucoDetector):
+    def __init__(self, aruco_detector: IArucoDetector, defined_zones: dict = None):
         self.aruco_detector = aruco_detector
         self.logger = logging.getLogger(__name__)
         
+        self.defined_zones = defined_zones if defined_zones else {}
+
     def order_points(self, pts):
         rect = np.zeros((4, 2), dtype="float32")
 
         s = pts.sum(axis=1)
-        rect[0] = pts[np.argmin(s)]
-        rect[2] = pts[np.argmax(s)]
+        rect[0] = pts[np.argmin(s)] 
+        rect[2] = pts[np.argmax(s)] 
 
         diff = np.diff(pts, axis=1)
-        rect[1] = pts[np.argmin(diff)]
-        rect[3] = pts[np.argmax(diff)]
+        rect[1] = pts[np.argmin(diff)] 
+        rect[3] = pts[np.argmax(diff)] 
 
         return rect
 
-    def four_point_transform(self, image, pts):
-        rect = self.order_points(pts)
+    def detect_zone(self, image):
+        """
+        Шукає маркери і перевіряє, чи співпадають вони з якоюсь із заданих зон.
+        Повертає (zone_id, rect), де rect - це впорядковані 4 точки.
+        Якщо зона не знайдена, повертає (-1, None).
+        """
+        if image is None:
+            return -1, None
+
+        found_markers = self.aruco_detector.detect_markers(image)
+        if not found_markers:
+            return -1, None
+
+        detected_dict = {marker["id"]: marker for marker in found_markers}
+        detected_ids = set(detected_dict.keys())
+
+        for zone_id, zone_marker_ids in self.defined_zones.items():
+            zone_marker_ids_set = set(zone_marker_ids)
+            
+            if zone_marker_ids_set.issubset(detected_ids):
+                zone_markers = [detected_dict[m_id] for m_id in zone_marker_ids]
+                marker_centers = np.array([m["center"] for m in zone_markers], dtype=np.float32)
+
+                rect = self.order_points(marker_centers)
+                
+                return zone_id, rect
+
+        return -1, None
+
+    def four_point_transform(self, image, rect):
         (tl, tr, br, bl) = rect
 
         widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
@@ -53,50 +79,13 @@ class WorkspaceExtractor:
         return warped
 
     def extract_workspace(self, image):
-        if image is None:
-            print("Input image is None")
+        """
+        Комплексний метод: знаходить зону і одразу вирізає її.
+        """
+        zone_id, rect = self.detect_zone(image)
+        
+        if zone_id == -1 or rect is None:
             return None
 
-        found_markers = self.aruco_detector.detect_markers(image)
-
-        if not found_markers or len(found_markers) < 4:
-            return None
-
-        marker_centers = np.array([marker["center"] for marker in found_markers])
-
-        try:
-            hull = cv2.convexHull(marker_centers.astype(np.float32))
-
-            if len(hull) >= 4:
-                boundary_points = hull.reshape(-1, 2)[:4]
-            else:
-                x_coords = marker_centers[:, 0]
-                y_coords = marker_centers[:, 1]
-
-                top_left_idx = np.argmin(x_coords + y_coords)
-                top_right_idx = np.argmin(-x_coords + y_coords)
-                bottom_right_idx = np.argmin(-x_coords - y_coords)
-                bottom_left_idx = np.argmin(x_coords - y_coords)
-
-                corner_indices = list(
-                    set(
-                        [top_left_idx, top_right_idx, bottom_right_idx, bottom_left_idx]
-                    )
-                )
-
-                if len(corner_indices) < 4:
-                    distances_from_center = np.sqrt(
-                        (marker_centers[:, 0] - np.mean(x_coords)) ** 2
-                        + (marker_centers[:, 1] - np.mean(y_coords)) ** 2
-                    )
-                    corner_indices = np.argsort(distances_from_center)[-4:]
-
-                boundary_points = marker_centers[corner_indices[:4]]
-
-            corrected_image = self.four_point_transform(image, boundary_points)
-
-            return corrected_image
-
-        except Exception as e:
-            print(f"Error during perspective correction: {e}")
-            return None
+        corrected_image = self.four_point_transform(image, rect)
+        return corrected_image
