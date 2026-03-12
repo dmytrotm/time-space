@@ -150,7 +150,7 @@ def worker_logic(command_queue, result_queue, config_paths):
             "branch_wrong_orientation_detector": WrongOrientation(),
             "missing_wires_detector": MissingWiresDetector(),
             "twisted_wires_detector": TwistedWires(),
-            "workspace_extractor": WorkspaceExtractor(aruco_factory(WORKSPACE_EXTRACTOR_CONFIG)),
+            "workspace_extractor": WorkspaceExtractor(aruco_factory()),#WORKSPACE_EXTRACTOR_CONFIG
         }
 
         # Helper to find ROI object

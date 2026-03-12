@@ -22,7 +22,7 @@ class ImageServer:
         
         # Use absolute path or relative to project root
         config_path = os.path.join(os.path.dirname(__file__), '..', 'configs', 'custom_markers.yaml')
-        detector = aruco_factory(custom_yaml_path=config_path)
+        detector = aruco_factory()
         self.extractor = WorkspaceExtractor(detector)
         
         # Initialize cameras if needed

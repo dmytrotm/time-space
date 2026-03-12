@@ -1,4 +1,6 @@
-from utils import ImageServer, WorkspaceExtractor, ROICropper, Visualizer
+from utils import Visualizer
+from processors import ROICropper, WorkspaceExtractor
+from core import ImageServer
 from utils.constants import GREEN
 import cv2
 import json
@@ -16,7 +18,7 @@ if __name__ == "__main__":
     )
     results = cameras.take_photos()
 
-    extractor = WorkspaceExtractor("configs/custom_markers.yaml")
+    extractor = WorkspaceExtractor()
     roi_cropper_z1 = ROICropper(roi_data_z1)
     roi_cropper_z2 = ROICropper(roi_data_z2)
 

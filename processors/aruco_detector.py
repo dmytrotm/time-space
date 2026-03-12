@@ -157,6 +157,8 @@ class ArucoDetector(IArucoDetector):
                 center_y = int(np.mean(marker_corners[:, 1]))
                 
                 marker_data = {
+                    "dictionary": "normal",
+                    "border": 1,
                     "id": int(ids[i][0]),
                     "center": (center_x, center_y),
                     "corners": marker_corners.tolist()
