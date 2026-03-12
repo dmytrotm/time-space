@@ -8,7 +8,7 @@ class WorkspaceExtractor:
         self.aruco_detector = aruco_detector
         self.logger = logging.getLogger(__name__)
         
-        self.defined_zones = defined_zones if defined_zones else {}
+        self.defined_zones = defined_zones if defined_zones else {}#1,2,3,6
 
     def order_points(self, pts):
         rect = np.zeros((4, 2), dtype="float32")
@@ -85,7 +85,7 @@ class WorkspaceExtractor:
         zone_id, rect = self.detect_zone(image)
         
         if zone_id == -1 or rect is None:
-            return None
+            return -1 , None
 
         corrected_image = self.four_point_transform(image, rect)
-        return corrected_image
+        return zone_id,corrected_image
