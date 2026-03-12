@@ -21,7 +21,7 @@ def display_markers():
 
     for _ in range(4): cap.read()
 
-    extractor = WorkspaceExtractor(aruco_factory(resize_for_speed=Fasle))
+    extractor = WorkspaceExtractor(aruco_factory(resize_for_speed=False))
 
     sdl2.ext.init()
     window_width, window_height = 1280, 720  
