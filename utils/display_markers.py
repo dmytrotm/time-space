@@ -3,6 +3,9 @@ import numpy as np
 import time
 import sdl2
 import sdl2.ext
+import argparse
+import sys
+import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
