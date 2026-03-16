@@ -14,7 +14,6 @@ class YoloLikeBoxes:
         self.data = boxes_array 
         self.orig_shape = orig_shape # (Height, Width)
         
-        # Захист розмірності для NumPy (щоб завжди був 2D масив)
         if self.data.ndim == 1 and len(self.data) > 0:
              self.data = self.data[np.newaxis, :]
         elif self.data.ndim == 1 and len(self.data) == 0:
@@ -24,7 +23,6 @@ class YoloLikeBoxes:
             self.xyxy = self.data[:, :4]
             self.conf = self.data[:, 4]
             self.cls = self.data[:, 5]
-            # Розрахунок координат
             self.xywh = self._xyxy2xywh(self.xyxy)
             self.xywhn = self._xywh2xywhn(self.xywh, self.orig_shape)
         else:
@@ -108,16 +106,14 @@ class YoloLikeResult:
 
 
 class TapeDetectorHailo(BaseDetector): 
-    def __init__(self, model_path="models/tape_detector.hef", conf_threshold=0.25):
+    def __init__(self, shared_device, model_path, labels_map, conf_threshold=0.25):
         self.hef_path = model_path
-        # Переконайтесь, що ID відповідають вашій логіці (0 - це Label чи Tape?)
-        # Зазвичай Hailo сортує класи за алфавітом, якщо не вказано інше при компіляції
-        self.labels_map = {1:"Label" ,2: "Tape", 0: "Connector"} 
+        self.labels_map = labels_map 
         self.conf_threshold = conf_threshold
         self.preprocess = Preprocessor()
         print(f"[Hailo] Init Detector: {self.hef_path}")
         
-        self.target = VDevice()
+        self.target = shared_device
         self.hef = HEF(self.hef_path)
 
         configure_params = ConfigureParams.create_from_hef(
@@ -161,7 +157,6 @@ class TapeDetectorHailo(BaseDetector):
         
         batch_numpy = np.array(batch_data, dtype=np.uint8)
 
-        # Перевірка безпеки
         if self._resources_released:
              raise RuntimeError("Hailo detector is already released!")
 
@@ -178,7 +173,6 @@ class TapeDetectorHailo(BaseDetector):
             
             parsed_boxes = self._parse_to_yolo_format(img_raw_result, orig_w, orig_h)
             
-            # Створюємо об'єкт з підтримкою .boxes.xywhn
             result_obj = YoloLikeResult(orig_img, parsed_boxes, self.labels_map)
             final_results.append(result_obj)
         return final_results
@@ -194,7 +188,6 @@ class TapeDetectorHailo(BaseDetector):
                 continue
             
             for box in class_boxes:
-                # [ymin, xmin, ymax, xmax, score]
                 if len(box) < 5: continue
                 ymin, xmin, ymax, xmax, score = box
                 
@@ -225,6 +218,60 @@ class TapeDetectorHailo(BaseDetector):
             print(f"[Hailo Warning] Error during release: {e}")
         finally:
             self._resources_released = True
+
+    def __del__(self):
+        self.release()
+
+
+
+
+
+class MultiClassHailoDetector(BaseDetector):
+    def __init__(self, model1_path, model2_path, conf_threshold=0.25):
+        self.target = VDevice()
+        self.target.__enter__()
+        print("[System] VDevice initialized successfully.")
+
+        # Фінальний словник класів
+        self.merged_names = {0: "Connector", 1: "Label", 2: "Tape"}
+
+        # Ініціалізуємо обидві моделі, передаючи спільний пристрій
+        self.det1 = TapeDetectorHailo(self.target, model1_path, self.merged_names, conf_threshold)
+        self.det2 = TapeDetectorHailo(self.target, model2_path, self.merged_names, conf_threshold)
+
+    def detect(self, image):
+        """Коротка обгортка для одного зображення"""
+        return self.predict_batch([image])[0]
+
+    def predict_batch(self, images):
+        """Основна логіка інференсу та злиття результатів"""
+        results1 = self.det1.predict_batch(images)
+        results2 = self.det2.predict_batch(images)
+        
+        merged_results = []
+        for r1, r2 in zip(results1, results2):
+            # Копіюємо масиви, щоб уникнути зміни оригіналів
+            boxes1 = np.copy(r1.boxes.data)
+            boxes2 = np.copy(r2.boxes.data)
+            
+            # Ремаппінг класів для першої моделі (0->1, 1->2)
+            if len(boxes1) > 0:
+                boxes1[:, 5] += 1
+                
+            # Зливаємо (vstack безпечний для порожніх масивів розмірності (0, 6))
+            merged_boxes = np.vstack((boxes1, boxes2))
+            
+            # Формуємо фінальний результат
+            merged_results.append(YoloLikeResult(r1.orig_img, merged_boxes, self.merged_names))
+            
+        return merged_results
+
+    def release(self):
+        """Правильне закриття всіх ресурсів Hailo"""
+        self.det1.release()
+        self.det2.release()
+        self.target.__exit__(None, None, None)
+        print("[System] MultiClassHailoDetector resources released.")
 
     def __del__(self):
         self.release()

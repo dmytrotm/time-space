@@ -74,3 +74,9 @@ ERROR_CODES = {
     "WRONG_ORIENTATION": "7",
     "TWISTED_WIRES": "8",
 }
+
+ZONES_DICT = {
+    1: [1,2,3,6],
+    2: [4,5,7,8]
+}
+raise KeyError("You forgot to set zones id")

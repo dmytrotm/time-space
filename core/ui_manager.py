@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import sdl2
 import sdl2.ext
 import sdl2.sdlttf as sdlttf
@@ -14,7 +13,7 @@ except ImportError:
         KEY_2 = 3
         KEY_7 = 4
 
-
+import time
 import threading
 from queue import Queue
 
@@ -136,16 +135,11 @@ class UIManager:
             self.is_running_verification = True
 
             try:
+                #TODO move this operation to the worker
                 images = self.image_server.take_photos()
 
-                if not images:
-                    # Handle no images error immediately
-                    # But we are in the UI loop context, so we need to handle state update in main loop
-                    # For now, let's just push a fake error result to manager's queue or handle it
-                    # But manager queue is for worker results.
-                    # Let's just trigger verification with empty list and let worker handle it?
-                    # Or better, handle it here.
-                    pass
+                if not images or len(images) != 2:
+                    raise ValueError("There is not images captured")
 
                 self.verification_manager.trigger_verification(images)
             except Exception as e:
@@ -154,42 +148,53 @@ class UIManager:
 
     def main_loop(self):
         """Main UI loop."""
-        # Initialize SDL and TTF
         sdl2.ext.init()
         sdlttf.TTF_Init()
 
-        # Load fonts
         font_large = sdlttf.TTF_OpenFont(
             b"/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48
         )
+        
         font_small = sdlttf.TTF_OpenFont(
             b"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24
         )
-
-        # Window setup
+        if not font_large or not font_small:
+            raise RuntimeError("Fonts are not loaded, please check the paths")
         window = sdl2.ext.Window("TIME&SPACE", size=(self.WIDTH, self.HEIGHT))
         window.show()
         sdl2.SDL_ShowCursor(sdl2.SDL_DISABLE)
         renderer = sdl2.SDL_CreateRenderer(window.window, -1, 0)
 
-        # Keyboard input queue
         keys = Queue()
 
         def keyboard_thread():
-            kbd = find_keyboard_by_name()
-            if kbd is None:
-                print(
-                    "ERROR: Keyboard device not found. UI will run without keyboard input."
-                )
-                return
-            for e in kbd.read_loop():
-                if e.type == ecodes.EV_KEY:
-                    if e.value == 0:  # Key release
-                        keys.put(e.code)
+            while True:
+                kbd = find_keyboard_by_name()
+                
+                if kbd is None:
+                    time_to_sleep = 2
+                    print(f"Keyboard is not found, another try in {time_to_sleep} second")
+                    time.sleep(time_to_sleep)
+                    continue  
+                    
+                print(f"Keyboard is found")
+                
+                try:
+                    for e in kbd.read_loop():
+                        if e.type == ecodes.EV_KEY:
+                            if e.value == 0:  
+                                keys.put(e.code)
+                                
+                except (IOError, OSError) as e:
+                    print(f"Keyboard is out. Trying to reconnect...")
+                    time.sleep(1)
+                    
+                except Exception as e:
+                    print(f"Uknown error: {e}")
+                    time.sleep(1)
 
         threading.Thread(target=keyboard_thread, daemon=True).start()
 
-        # State management
         current_state = STATE_START
         error_message = ""
 
@@ -199,8 +204,10 @@ class UIManager:
 
         while running:
             frame_start = sdl2.SDL_GetTicks()
-
-            # Check if function returned result
+            events = sdl2.ext.get_events()
+            for event in events:
+                if event.type == sdl2.SDL_QUIT:
+                    running = False
             result = self.verification_manager.check_results()
             if result:
                 self.is_running_verification = False
@@ -210,7 +217,6 @@ class UIManager:
                     current_state = STATE_ERROR
                     error_message = result["error"]
 
-            # Handle keyboard input
             if not keys.empty():
                 key = keys.get()
 
@@ -218,14 +224,12 @@ class UIManager:
                     running = False
 
                 elif key == ecodes.KEY_1:
-                    # Only start verification if not already running
                     if not self.is_running_verification:
-                        if current_state == STATE_START:
+                        if current_state == STATE_START or current_state == STATE_ERROR:
                             current_state = STATE_LOADING
-                            self.start_verification()
-                        elif current_state == STATE_ERROR:
-                            current_state = STATE_LOADING
-                            self.start_verification()
+                            if not self.start_verification():
+                                current_state = STATE_ERROR
+                                error_message = "Camera Error"
                         elif current_state == STATE_SUCCESS:
                             current_state = STATE_START
                 elif key == ecodes.KEY_2:
@@ -236,11 +240,9 @@ class UIManager:
                         ):
                             current_state = STATE_START
 
-            # Clear screen
             sdl2.SDL_SetRenderDrawColor(renderer, 30, 30, 40, 255)
             sdl2.SDL_RenderClear(renderer)
 
-            # Render current state
             if current_state == STATE_START:
                 self.render_start_screen(renderer, font_large, font_small)
 
@@ -255,15 +257,12 @@ class UIManager:
             elif current_state == STATE_SUCCESS:
                 self.render_success_screen(renderer, font_large, font_small)
 
-            # Present
             sdl2.SDL_RenderPresent(renderer)
 
-            # Frame timing
             frame_time = sdl2.SDL_GetTicks() - frame_start
             if frame_time < FRAME_DELAY:
                 sdl2.SDL_Delay(FRAME_DELAY - frame_time)
 
-        # Cleanup
         sdlttf.TTF_CloseFont(font_large)
         sdlttf.TTF_CloseFont(font_small)
         sdlttf.TTF_Quit()
