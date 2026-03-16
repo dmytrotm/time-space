@@ -232,10 +232,8 @@ class MultiClassHailoDetector(BaseDetector):
         self.target.__enter__()
         print("[System] VDevice initialized successfully.")
 
-        # Фінальний словник класів
         self.merged_names = {0: "Connector", 1: "Label", 2: "Tape"}
 
-        # Ініціалізуємо обидві моделі, передаючи спільний пристрій
         self.det1 = TapeDetectorHailo(self.target, model1_path, self.merged_names, conf_threshold)
         self.det2 = TapeDetectorHailo(self.target, model2_path, self.merged_names, conf_threshold)
 
@@ -250,18 +248,14 @@ class MultiClassHailoDetector(BaseDetector):
         
         merged_results = []
         for r1, r2 in zip(results1, results2):
-            # Копіюємо масиви, щоб уникнути зміни оригіналів
             boxes1 = np.copy(r1.boxes.data)
             boxes2 = np.copy(r2.boxes.data)
             
-            # Ремаппінг класів для першої моделі (0->1, 1->2)
             if len(boxes1) > 0:
                 boxes1[:, 5] += 1
                 
-            # Зливаємо (vstack безпечний для порожніх масивів розмірності (0, 6))
             merged_boxes = np.vstack((boxes1, boxes2))
             
-            # Формуємо фінальний результат
             merged_results.append(YoloLikeResult(r1.orig_img, merged_boxes, self.merged_names))
             
         return merged_results

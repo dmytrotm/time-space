@@ -76,7 +76,6 @@ ERROR_CODES = {
 }
 
 ZONES_DICT = {
-    1: [1,2,3,6],
-    2: [4,5,7,8]
+    2: [4,2,3,5],
+    1: [1,2,3,6]
 }
-raise KeyError("You forgot to set zones id")
