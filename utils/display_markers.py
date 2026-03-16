@@ -13,8 +13,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from processors.workspace_extractor import WorkspaceExtractor
 
 from processors.aruco_detector import aruco_factory 
-def display_markers():
-    cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+def display_markers(id = 0):
+    cap = cv2.VideoCapture(id, cv2.CAP_V4L2)
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 4000)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 3000)
@@ -87,6 +87,7 @@ def display_markers():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Continuous detection and display of custom markers in a video stream.")
+    parser.add_argument("--id", type=int, help="Cams ID")
     args = parser.parse_args()
 
-    display_markers()
+    display_markers(args.id)
