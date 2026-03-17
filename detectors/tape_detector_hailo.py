@@ -227,7 +227,7 @@ class TapeDetectorHailo(BaseDetector):
 
 
 class MultiClassHailoDetector(BaseDetector):
-    def __init__(self, model1_path, model2_path, conf_threshold=0.25):
+    def __init__(self, model1_path="models/tape_detector.hef", model2_path="models/connectors.hef", conf_threshold=0.25):
         self.target = VDevice()
         self.target.__enter__()
         print("[System] VDevice initialized successfully.")
