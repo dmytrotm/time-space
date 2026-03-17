@@ -336,7 +336,7 @@ def worker_logic(command_queue, result_queue, config_paths):
                         if tape_batch_images:
                             timer.start("tape_detector_total")
                             tape_results = detectors["yolo_detector"].predict_batch(
-                                tape_batch_images
+                                tape_batch_images, tape_batch_metadata
                             )
                             total_tape_time = timer.stop("tape_detector_total")
 

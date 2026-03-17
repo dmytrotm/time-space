@@ -240,24 +240,41 @@ class MultiClassHailoDetector(BaseDetector):
         """Коротка обгортка для одного зображення"""
         return self.predict_batch([image])[0]
 
-    def predict_batch(self, images):
-        """Основна логіка інференсу та злиття результатів"""
-        results1 = self.det1.predict_batch(images)
-        results2 = self.det2.predict_batch(images)
+    def predict_batch(self, images, metadata=None):
+        """Розумний роутинг: відправляємо картинку тільки у відповідну модель"""
         
-        merged_results = []
-        for r1, r2 in zip(results1, results2):
-            boxes1 = np.copy(r1.boxes.data)
-            boxes2 = np.copy(r2.boxes.data)
-            
-            if len(boxes1) > 0:
-                boxes1[:, 5] += 1
-                
-            merged_boxes = np.vstack((boxes1, boxes2))
-            
-            merged_results.append(YoloLikeResult(r1.orig_img, merged_boxes, self.merged_names))
-            
-        return merged_results
+        if metadata is None:
+            print("[Warning] No metadata provided, running both models on all images!")
+            pass
+
+        results = [None] * len(images)
+        
+        tape_indices, tape_images = [], []
+        conn_indices, conn_images = [], []
+        
+        for i, (img, meta) in enumerate(zip(images, metadata)):
+            if meta["type"] in ["TAPE", "LABEL"]:
+                tape_indices.append(i)
+                tape_images.append(img)
+            elif meta["type"] == "CONNECTORS":
+                conn_indices.append(i)
+                conn_images.append(img)
+
+        if tape_images:
+            res1 = self.det1.predict_batch(tape_images)
+            for idx, r1 in zip(tape_indices, res1):
+                boxes = np.copy(r1.boxes.data)
+                if len(boxes) > 0:
+                    boxes[:, 5] += 1  
+                results[idx] = YoloLikeResult(r1.orig_img, boxes, self.merged_names)
+
+        if conn_images:
+            res2 = self.det2.predict_batch(conn_images)
+            for idx, r2 in zip(conn_indices, res2):
+                boxes = np.copy(r2.boxes.data)
+                results[idx] = YoloLikeResult(r2.orig_img, boxes, self.merged_names)
+
+        return results
 
     def release(self):
         """Правильне закриття всіх ресурсів Hailo"""

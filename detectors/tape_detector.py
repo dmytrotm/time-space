@@ -38,28 +38,71 @@ class MultiClassYoloDetector(BaseDetector):
     def detect(self, image):
         return self.predict_batch([image])[0]
 
-    def predict_batch(self, images):
-        results1 = self.det1.predict_batch(images)
-        results2 = self.det2.predict_batch(images)
+    def predict_batch(self, images, metadata=None):
+        """Розумний роутинг для PyTorch YOLO моделей"""
         
-        merged_results = []
-        
-        for r1, r2 in zip(results1, results2):
-            boxes1 = r1.boxes.data.clone() if len(r1.boxes) > 0 else torch.empty((0, 6), device=r1.boxes.data.device)
-            boxes2 = r2.boxes.data.clone() if len(r2.boxes) > 0 else torch.empty((0, 6), device=r2.boxes.data.device)
-        
-            if len(boxes1) > 0:
-                boxes1[:, 5] += 1  
-            merged_boxes = torch.cat((boxes1, boxes2), dim=0)
+        if metadata is None:
+            results1 = self.det1.predict_batch(images)
+            results2 = self.det2.predict_batch(images)
             
-            merged_result = Results(
-                orig_img=r1.orig_img, 
-                path=r1.path, 
-                names=self.merged_names, 
-                boxes=merged_boxes
-            )
-            merged_results.append(merged_result)
+            merged_results = []
+            for r1, r2 in zip(results1, results2):
+                boxes1 = r1.boxes.data.clone() if len(r1.boxes) > 0 else torch.empty((0, 6), device=r1.boxes.data.device)
+                boxes2 = r2.boxes.data.clone() if len(r2.boxes) > 0 else torch.empty((0, 6), device=r2.boxes.data.device)
             
+                if len(boxes1) > 0:
+                    boxes1[:, 5] += 1  
+                merged_boxes = torch.cat((boxes1, boxes2), dim=0)
+                
+                merged_result = Results(
+                    orig_img=r1.orig_img, 
+                    path=r1.path, 
+                    names=self.merged_names, 
+                    boxes=merged_boxes
+                )
+                merged_results.append(merged_result)
+            return merged_results
+
+        merged_results = [None] * len(images)
+        
+        tape_indices, tape_images = [], []
+        conn_indices, conn_images = [], []
+        
+        for i, (img, meta) in enumerate(zip(images, metadata)):
+            if meta["type"] in ["TAPE", "LABEL"]:
+                tape_indices.append(i)
+                tape_images.append(img)
+            elif meta["type"] == "CONNECTORS":
+                conn_indices.append(i)
+                conn_images.append(img)
+                
+        if tape_images:
+            res1 = self.det1.predict_batch(tape_images)
+            for idx, r1 in zip(tape_indices, res1):
+                boxes = r1.boxes.data.clone() if len(r1.boxes) > 0 else torch.empty((0, 6), device=r1.boxes.data.device)
+                
+                if len(boxes) > 0:
+                    boxes[:, 5] += 1  
+                
+                merged_results[idx] = Results(
+                    orig_img=r1.orig_img,
+                    path=r1.path,
+                    names=self.merged_names,
+                    boxes=boxes
+                )
+                
+        if conn_images:
+            res2 = self.det2.predict_batch(conn_images)
+            for idx, r2 in zip(conn_indices, res2):
+                boxes = r2.boxes.data.clone() if len(r2.boxes) > 0 else torch.empty((0, 6), device=r2.boxes.data.device)
+                
+                merged_results[idx] = Results(
+                    orig_img=r2.orig_img,
+                    path=r2.path,
+                    names=self.merged_names,
+                    boxes=boxes
+                )
+                
         return merged_results
     
     def release(self):
