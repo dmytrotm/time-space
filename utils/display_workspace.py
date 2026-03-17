@@ -6,6 +6,8 @@ import sdl2.ext
 import argparse
 import sys
 import os
+from utils.constants import ZONES_DICT
+
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -21,9 +23,7 @@ def display_workspace(id = 0):
     for _ in range(4): 
         cap.read()
 
-    my_zones = {
-        1: [1, 2, 3, 6] 
-    }
+    my_zones = ZONES_DICT
     
     extractor = WorkspaceExtractor(aruco_factory(track_time=False), defined_zones=my_zones)
 
