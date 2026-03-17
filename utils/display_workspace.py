@@ -6,7 +6,7 @@ import sdl2.ext
 import argparse
 import sys
 import os
-from utils.constants import ZONES_DICT
+from constants import ZONES_DICT
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -55,10 +55,9 @@ def display_workspace(id = 0):
             break
 
         id, workspace_image = extractor.extract_workspace(image)
-        print(id)
         if workspace_image is not None:
             display_img = workspace_image
-            cv2.putText(display_img, f"Workspace Active | FPS: {fps:.1f}", (30, 80), 
+            cv2.putText(display_img, f"Workspace {id} Active | FPS: {fps:.1f}", (30, 80), 
                         cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 255, 0), 4)
         else:
             display_img = image.copy()
