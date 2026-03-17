@@ -61,7 +61,6 @@ def _preprocess_roi(args):
             processed_image = cv2.resize(cropped_roi, target_size)
         else:
             processed_image = cropped_roi
-        cv2.imwrite(f"{roi_name}.png", processed_image)
         return roi_name, processed_image, roi_config, zone_number
 
     except Exception as e:
