@@ -3,141 +3,130 @@ import os
 import time
 from processors import WorkspaceExtractor, aruco_factory
 
-
 class ImageServer:
     def __init__(self, *image_paths, use_cameras=False, camera_ids=None):
         """
-        Initializes with a list of image paths or camera IDs.
-        Args:
-            *image_paths: A variable number of paths to the images (used if use_cameras=False).
-            use_cameras: If True, use live cameras instead of image files.
-            camera_ids: List of camera IDs to use (e.g., [0, 2]). If None, uses [0, 1].
+        Initializes with a list of image paths or camera IDs/Paths.
         """
         self.use_cameras = use_cameras
         self.image_paths = list(image_paths)
         self.ordered_paths = None
         self.zone_mapping = {}
-        self.cameras = []
-        self.camera_ids = camera_ids if camera_ids is not None else [0, 1]
         
-        # Use absolute path or relative to project root
+        # Зашиваємо ваші залізобетонні шляхи за замовчуванням!
+        default_cams = [
+            "/dev/v4l/by-path/platform-xhci-hcd.0-usb-0:1:1.0-video-index0",
+            "/dev/v4l/by-path/platform-xhci-hcd.1-usb-0:1.4:1.0-video-index0"
+        ]
+        self.camera_ids = camera_ids if camera_ids is not None else default_cams
+        self.cameras = [None] * len(self.camera_ids)
+        
+        # Ініціалізація ArUco
         config_path = os.path.join(os.path.dirname(__file__), '..', 'configs', 'custom_markers.yaml')
         detector = aruco_factory()
         self.extractor = WorkspaceExtractor(detector)
         
-        # Initialize cameras if needed
         if self.use_cameras:
             self._init_cameras()
     
-    def _init_cameras(self):
-        """Initialize cameras with proper settings."""
-        self.cameras = []
-        for cam_id in self.camera_ids:
-            cam = None
-            # Try V4L2 first, then fall back to CAP_ANY
-            for backend in [cv2.CAP_V4L2, cv2.CAP_ANY]:
-                try:
-                    cam = cv2.VideoCapture(cam_id, backend)
-                    if cam.isOpened():
-                        # Try to set MJPG if possible
-                        try:
-                            cam.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-                        except:
-                            pass
-                        cam.set(cv2.CAP_PROP_FRAME_WIDTH, 4000)
-                        cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 3000)
-                        
-                        # Test if we can actually read a frame
-                        ret, _ = cam.read()
-                        if ret:
-                            self.cameras.append(cam)
-                            backend_name = "V4L2" if backend == cv2.CAP_V4L2 else "ANY"
-                            print(f"Camera {cam_id} initialized successfully (using {backend_name})")
-                            break
-                        else:
-                            cam.release()
-                except Exception as e:
-                    if cam is not None:
+    def _connect_single_camera(self, cam_id):
+        """Спроба підключити одну камеру із захистом від зависань"""
+        for backend in [cv2.CAP_V4L2, cv2.CAP_ANY]:
+            try:
+                cam = cv2.VideoCapture(cam_id, backend)
+                if cam.isOpened():
+                    try:
+                        cam.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                    except:
+                        pass
+                    cam.set(cv2.CAP_PROP_FRAME_WIDTH, 4000)
+                    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 3000)
+                    # Зменшуємо FPS, щоб не забивати USB-шину Raspberry Pi
+                    cam.set(cv2.CAP_PROP_FPS, 5) 
+                    
+                    ret, _ = cam.read()
+                    if ret:
+                        backend_name = "V4L2" if backend == cv2.CAP_V4L2 else "ANY"
+                        # Виводимо тільки кінець довгого шляху для зручності читання в логах
+                        short_name = str(cam_id).split('/')[-1] if isinstance(cam_id, str) else cam_id
+                        print(f"Camera [{short_name}] connected successfully ({backend_name})")
+                        return cam
+                    else:
                         cam.release()
-                    continue
-            
-            if cam is None or not cam.isOpened():
-                print(f"Warning: Could not open camera {cam_id}")
+            except Exception:
+                if 'cam' in locals() and cam is not None:
+                    cam.release()
+                continue
+        return None
+
+    def _init_cameras(self):
+        """Ініціалізація всіх камер"""
+        for idx, cam_id in enumerate(self.camera_ids):
+            self.cameras[idx] = self._connect_single_camera(cam_id)
+            if self.cameras[idx] is None:
+                short_name = str(cam_id).split('/')[-1] if isinstance(cam_id, str) else cam_id
+                print(f"Warning: Could not open camera [{short_name}] at startup.")
     
-    def _capture_with_temp_resolution(self, cam, width=4000, height=3000, warmup=3):
-        """
-        Capture a high-resolution frame temporarily, then restore original resolution.
-        Args:
-            cam: OpenCV VideoCapture object
-            width: Temporary width for capture
-            height: Temporary height for capture
-            warmup: Number of warmup frames to skip
-        Returns:
-            numpy array: Captured frame
-        """
-        # old_w = int(cam.get(cv2.CAP_PROP_FRAME_WIDTH))
-        # old_h = int(cam.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        
-        # # Try to set higher resolution
-        # cam.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        # cam.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        
-        # # Check what resolution was actually set
-        # actual_w = int(cam.get(cv2.CAP_PROP_FRAME_WIDTH))
-        # actual_h = int(cam.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        
-        # if actual_w != width or actual_h != height:
-        #     print(f"  Note: Requested {width}x{height}, camera using {actual_w}x{actual_h}")
-        
-        # # Warmup frames
+    def _capture_with_temp_resolution(self, cam, warmup=10):
+        """Читає кадри. Викидає помилку, якщо камера відвалилася."""
         for _ in range(warmup):
             cam.read()
         
         ret, frame = cam.read()
         
-        # Restore original resolution
-        # cam.set(cv2.CAP_PROP_FRAME_WIDTH, old_w)
-        # cam.set(cv2.CAP_PROP_FRAME_HEIGHT, old_h)
-        
-        # Clear buffer with one read
-        # cam.read()
-        
         if not ret or frame is None:
-            raise RuntimeError("Camera did not capture the frame")
+            raise RuntimeError("Camera lost connection or returned empty frame")
         
         return frame
     
-    
     def take_photos(self):
-        """
-        Captures images from cameras or loads from files.
-        Returns images in the order established by setup() if available,
-        otherwise in the original order.
-        
-        Returns:
-            A list of images (as numpy arrays).
-        """
+        """Робить знімки з гарячим перепідключенням, якщо камера відвалилась"""
         images = []
         
         if self.use_cameras:
-            # Use ordered camera indices if setup was called
-            indices_to_use = self.ordered_paths if self.ordered_paths else list(range(len(self.cameras)))
+            indices_to_use = self.ordered_paths if self.ordered_paths else list(range(len(self.camera_ids)))
             
             for idx in indices_to_use:
-                if idx < len(self.cameras):
+                if idx >= len(self.camera_ids):
+                    continue
+                
+                cam_id = self.camera_ids[idx]
+                cam = self.cameras[idx]
+                short_name = str(cam_id).split('/')[-1] if isinstance(cam_id, str) else cam_id
+                
+                # 1. Якщо камера мертва ще зі старту - пробуємо підняти
+                if cam is None:
+                    print(f"Info: Camera [{short_name}] is offline. Reconnecting...")
+                    cam = self._connect_single_camera(cam_id)
+                    self.cameras[idx] = cam
+                
+                # 2. Якщо камера жива - робимо знімок
+                if cam is not None:
                     try:
-                        img = self._capture_with_temp_resolution(self.cameras[idx])
+                        img = self._capture_with_temp_resolution(cam)
                         images.append(img)
                     except Exception as e:
-                        print(f"Warning: Could not capture from camera {self.camera_ids[idx]}: {e}")
+                        print(f"Warning: Camera [{short_name}] dropped during capture. Reconnecting...")
+                        cam.release() # Вбиваємо завислий об'єкт
+                        
+                        # Гаряче перепідключення
+                        cam = self._connect_single_camera(cam_id)
+                        self.cameras[idx] = cam
+                        
+                        if cam is not None:
+                            try:
+                                print(f"Success: Camera [{short_name}] reconnected. Taking photo...")
+                                img = self._capture_with_temp_resolution(cam, warmup=5)
+                                images.append(img)
+                            except Exception as e2:
+                                print(f"Error: Camera [{short_name}] failed again: {e2}")
+                        else:
+                            print(f"Error: Could not reconnect camera [{short_name}]")
         else:
-            # Original file-based logic
             paths_to_use = self.ordered_paths if self.ordered_paths else self.image_paths
-            
             for path in paths_to_use:
                 if not os.path.exists(path):
                     continue
-                
                 img = cv2.imread(path)
                 if img is not None:
                     images.append(img)
@@ -147,19 +136,10 @@ class ImageServer:
         return images
     
     def _detect_zone(self, image):
-        """
-        Detects which zone an image belongs to based on ArUco markers.
-        
-        Args:
-            image: numpy array of the image
-            
-        Returns:
-            int or None: 1 for zone 1, 2 for zone 2, None if undetermined
-        """
+        # ... ваш оригінальний код без змін ...
         markers = self.extractor.detect_markers(image)
         zone1_count = 0
         zone2_count = 0
-        
         for marker in markers:
             dictionary = marker.get("dictionary", "")
             if dictionary == "zone1_markers":
@@ -168,49 +148,27 @@ class ImageServer:
                 zone2_count += 1
         
         total_markers = len(markers)
-        
-        # Need at least 4 markers total and exactly 2 exclusive markers for one zone
         if total_markers >= 4:
             if zone1_count == 2 and zone2_count == 0:
                 return 1
             elif zone2_count == 2 and zone1_count == 0:
                 return 2
-        
         return None
     
     def get_zone_info(self):
-        """
-        Returns the current zone mapping.
-        
-        Returns:
-            dict: Dictionary mapping image paths/cameras to their detected zone_id
-        """
         return self.zone_mapping.copy()
     
     def release(self):
-        """Release all camera resources."""
         if self.use_cameras:
             for cam in self.cameras:
-                cam.release()
+                if cam is not None:
+                    cam.release()
             self.cameras = []
             print("All cameras released")
 
-
-# Usage examples:
+# Тестовий запуск
 if __name__ == "__main__":
-    # Example 1: Using files (original behavior)
-    server_files = ImageServer("path/to/image1.jpg", "path/to/image2.jpg")
-    server_files.setup()
-    images = server_files.take_photos()
-    
-    # Example 2: Using cameras with default IDs [0, 1]
     server_cams = ImageServer(use_cameras=True)
-    server_cams.setup()
     images = server_cams.take_photos()
+    print(f"Успішно зроблено {len(images)} фотографій.")
     server_cams.release()
-    
-    # Example 3: Using specific camera IDs
-    server_custom = ImageServer(use_cameras=True, camera_ids=[0, 2])
-    server_custom.setup()
-    images = server_custom.take_photos()
-    server_custom.release()
