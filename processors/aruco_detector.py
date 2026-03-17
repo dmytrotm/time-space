@@ -187,7 +187,7 @@ class ArucoDetectorTime(IArucoDetector):
         
         execution_time = end_time - start_time
         
-        print(f"[DEBUG] Detection time: {execution_time:.4f} seconds")
+       # print(f"[DEBUG] Detection time: {execution_time:.4f} seconds")
         
         return result
 
