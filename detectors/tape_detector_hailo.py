@@ -146,9 +146,12 @@ class TapeDetectorHailo(BaseDetector):
 
         for img in images:
             original_images.append(img)
-            img = self.preprocess.preprocess(img)
-            resized = cv2.resize(img, (self.model_w, self.model_h))
-            batch_data.append(resized)
+            
+            resized = cv2.resize(img, (self.model_w, self.model_h), interpolation=cv2.INTER_LINEAR)
+            
+            img_rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+            
+            batch_data.append(img_rgb)
         
         batch_numpy = np.array(batch_data, dtype=np.uint8)
 
