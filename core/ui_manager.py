@@ -227,9 +227,6 @@ class UIManager:
                     if not self.is_running_verification:
                         if current_state == STATE_START or current_state == STATE_ERROR:
                             current_state = STATE_LOADING
-                            if not self.start_verification():
-                                current_state = STATE_ERROR
-                                error_message = "Camera Error"
                         elif current_state == STATE_SUCCESS:
                             current_state = STATE_START
                 elif key == ecodes.KEY_2:
