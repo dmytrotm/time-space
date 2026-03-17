@@ -28,7 +28,7 @@ import torch
 from ultralytics.engine.results import Results
 
 class MultiClassYoloDetector(BaseDetector):
-    def __init__(self, model1_path="models/tape_detector.pt", model2_path="models/connector.pt", conf_threshold=0.25):
+    def __init__(self, model1_path="models/tape_detector.pt", model2_path="models/connectors.pt", conf_threshold=0.25):
         print(f"[PyTorch] Init Multi-Class Detector")
         self.det1 = TapeDetector(model1_path, conf_threshold) 
         self.det2 = TapeDetector(model2_path, conf_threshold) 
