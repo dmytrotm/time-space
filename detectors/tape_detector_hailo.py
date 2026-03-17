@@ -162,7 +162,6 @@ class TapeDetectorHailo(BaseDetector):
         with self.network_group.activate():
             with InferVStreams(self.network_group, self.input_params, self.output_params) as pipeline:
                 res = pipeline.infer({input_name: batch_numpy})
-        print(res)
         final_results = []
         for i, img_raw_result in enumerate(batch_numpy): 
             orig_img = original_images[i]
