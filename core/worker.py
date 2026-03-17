@@ -177,7 +177,7 @@ def worker_logic(command_queue, result_queue, config_paths):
                         for i, img in enumerate(images):
                             zone_number = i + 1
                             ws_tasks.append(
-                                (img, detectors["workspace_extractor"], zone_number)
+                                (img, detectors["workspace_extractor"])
                             )
 
                         timer.start("workspace_extraction_total")
