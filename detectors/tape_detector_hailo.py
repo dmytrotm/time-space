@@ -160,18 +160,18 @@ class TapeDetectorHailo(BaseDetector):
             with InferVStreams(self.network_group, self.input_params, self.output_params) as pipeline:
                 res = pipeline.infer({input_name: batch_numpy})
         
-        output_name = list(res.keys())[0]
-        raw_output = res[output_name]
-        
         final_results = []
-        for i, img_raw_result in enumerate(raw_output):
+        for i, img_raw_result in enumerate(batch_numpy): 
             orig_img = original_images[i]
             orig_h, orig_w = orig_img.shape[:2]
             
-            parsed_boxes = self._parse_to_yolo_format(img_raw_result, orig_w, orig_h)
+            raw_tensors = {k: v[i] for k, v in res.items()}
+            
+            parsed_boxes = self._parse_to_yolo_format(raw_tensors, orig_w, orig_h)
             
             result_obj = YoloLikeResult(orig_img, parsed_boxes, self.labels_map)
             final_results.append(result_obj)
+            
         return final_results
 
     def _parse_to_yolo_format(self, class_list, orig_w, orig_h):
