@@ -135,11 +135,6 @@ class TapeDetectorHailo(BaseDetector):
         else:
             self.model_h, self.model_w = 576, 576
 
-        self.network_ctx = self.network_group.activate()
-        self.network_ctx.__enter__()
-
-        self.pipeline = InferVStreams(self.network_group, self.input_params, self.output_params)
-        self.pipeline_ctx = self.pipeline.__enter__()
         self._resources_released = False
 
     def detect(self, image):
@@ -161,7 +156,9 @@ class TapeDetectorHailo(BaseDetector):
              raise RuntimeError("Hailo detector is already released!")
 
         input_name = self.input_vstream_info.name
-        res = self.pipeline.infer({input_name: batch_numpy})
+        with self.network_group.activate():
+            with InferVStreams(self.network_group, self.input_params, self.output_params) as pipeline:
+                res = pipeline.infer({input_name: batch_numpy})
         
         output_name = list(res.keys())[0]
         raw_output = res[output_name]
@@ -212,8 +209,7 @@ class TapeDetectorHailo(BaseDetector):
             return
         print("[Hailo] Releasing resources...")
         try:
-            if hasattr(self, 'pipeline_ctx'): self.pipeline_ctx.__exit__(None, None, None)
-            if hasattr(self, 'network_ctx'): self.network_ctx.__exit__(None, None, None)
+            pass
         except Exception as e:
             print(f"[Hailo Warning] Error during release: {e}")
         finally:
