@@ -11,7 +11,8 @@ from detectors import (
     WrongOrientation,
     MissingWiresDetector,
     TwistedWires,
-    MultiClassYoloDetector
+    MultiClassYoloDetector,
+    MultiClassHailoDetector
 )
 from processors import ROICropper, YOLOROIMapper, WorkspaceExtractor, aruco_factory
 from utils.constants import (
