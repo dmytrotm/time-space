@@ -8,7 +8,6 @@ from detectors import (
     TapeDetector,
     TapeDetectorHailo,
     TapeDeviationDetector,
-    WrongOrientation,
     MissingWiresDetector,
     TwistedWires,
     MultiClassYoloDetector,
@@ -143,7 +142,6 @@ def worker_logic(command_queue, result_queue, config_paths):
             "yolo_detector": yolo_detectors,
             "tape_deviation_detector": TapeDeviationDetector(positions),
             "yolo_roi_mapper": YOLOROIMapper(),
-            "branch_wrong_orientation_detector": WrongOrientation(),
             "missing_wires_detector": MissingWiresDetector(),
             "twisted_wires_detector": TwistedWires(),
             "workspace_extractor": WorkspaceExtractor(aruco_factory(),ZONES_DICT),#WORKSPACE_EXTRACTOR_CONFIG
