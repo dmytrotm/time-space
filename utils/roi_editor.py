@@ -11,14 +11,30 @@ class InteractiveROIEditor:
         self.roi_file = roi_file
         self.original_image = None
         self.display_image = None
-        self.rois = []
+        self.categories = ["tapes", "grounding", "wires", "connectors", "label"]
+        self.current_category = "tapes"
+        self.rois_dict = {cat: [] for cat in self.categories}
         self.drawing = False
         self.start_point = None
         self.end_point = None
-        self.roi_counter = 1
 
-        # Colors
-        self.roi_color = (0, 255, 0)  # Green for ROI boxes
+        # Category mapping for shapes
+        self.category_shapes = {
+            "tapes": "square",
+            "grounding": "rectangle",
+            "wires": "rectangle",
+            "connectors": "square",
+            "label": "square",
+        }
+
+        # Colors for each category
+        self.category_colors = {
+            "tapes": (0, 255, 0),  # Green
+            "grounding": (255, 0, 0),  # Blue
+            "wires": (0, 0, 255),  # Red
+            "connectors": (255, 0, 255),  # Magenta
+            "label": (0, 255, 255),  # Cyan
+        }
         self.text_color = (255, 255, 255)  # White for text
         self.preview_color = (255, 255, 0)  # Yellow for preview
 
@@ -35,11 +51,14 @@ class InteractiveROIEditor:
         self.display_image = self.original_image.copy()
 
         print(f"Image loaded: {self.width}x{self.height}")
-        print("Controls:")
+        print("\nControls:")
         print("  - Click and drag to draw an ROI")
+        print(f"  - Keys 1-{len(self.categories)}: Switch category:")
+        for i, cat in enumerate(self.categories, 1):
+            print(f"    {i}: {cat} ({self.category_shapes[cat]})")
         print("  - Press 's' to save ROIs")
-        print("  - Press 'c' to clear all ROIs")
-        print("  - Press 'd' to delete last ROI")
+        print("  - Press 'c' to clear current category ROIs")
+        print("  - Press 'd' to delete last ROI in current category")
         print("  - Press 'q' or ESC to quit")
 
     def load_rois(self):
@@ -48,30 +67,47 @@ class InteractiveROIEditor:
             try:
                 with open(self.roi_file, "r") as f:
                     data = json.load(f)
-                    self.rois = data.get("rois", [])
-                    if self.rois:
-                        self.roi_counter = (
-                            max(roi.get("id", 0) for roi in self.rois) + 1
-                        )
-                    else:
-                        self.roi_counter = 1
-                print(f"Loaded {len(self.rois)} existing ROIs from {self.roi_file}")
+                    # Support both new categorical format and legacy flat 'rois' format
+                    loaded_any = False
+                    for cat in self.categories:
+                        if cat in data:
+                            val = data[cat]
+                            if isinstance(val, list):
+                                self.rois_dict[cat] = val
+                            else:
+                                # Handle single object case (e.g. 'label' in rois_z1.json)
+                                self.rois_dict[cat] = [val]
+                            loaded_any = True
+
+                    if not loaded_any and "rois" in data:
+                        # Fallback to old format, putting everything in 'tapes' or first category
+                        self.rois_dict[self.categories[0]] = data["rois"]
+                        print(f"Loaded legacy ROIs into {self.categories[0]}")
+
+                count = sum(len(rois) for rois in self.rois_dict.values())
+                print(f"Loaded {count} existing ROIs from {self.roi_file}")
             except Exception as e:
                 print(f"Error loading ROIs: {e}")
-                self.rois = []
 
     def save_rois(self):
         """Save ROIs to JSON file"""
         data = {
-            "image_path": self.image_path,
             "image_size": {"width": self.width, "height": self.height},
-            "rois": self.rois,
         }
+        for cat, rois in self.rois_dict.items():
+            if not rois:
+                continue
+            if cat == "label" and len(rois) == 1:
+                # Save as single object for backward compatibility if it's 'label' and only 1
+                data[cat] = rois[0]
+            else:
+                data[cat] = rois
 
         try:
             with open(self.roi_file, "w") as f:
                 json.dump(data, f, indent=2)
-            print(f"Saved {len(self.rois)} ROIs to {self.roi_file}")
+            count = sum(len(rois) for rois in self.rois_dict.values())
+            print(f"Saved {count} ROIs to {self.roi_file}")
         except Exception as e:
             print(f"Error saving ROIs: {e}")
 
@@ -85,53 +121,94 @@ class InteractiveROIEditor:
 
     def add_roi(self, start_pixel, end_pixel):
         """Add a new ROI"""
-        # Ensure start_point is top-left and end_point is bottom-right
         x1, y1 = start_pixel
         x2, y2 = end_pixel
-        start_x = min(x1, x2)
-        start_y = min(y1, y2)
-        end_x = max(x1, x2)
-        end_y = max(y1, y2)
 
-        rel_start_x, rel_start_y = self.pixel_to_relative(start_x, start_y)
-        rel_end_x, rel_end_y = self.pixel_to_relative(end_x, end_y)
+        # Calculate max ID in current category
+        existing_ids = [roi.get("id", -1) for roi in self.rois_dict[self.current_category]]
+        next_id = max(existing_ids) + 1 if existing_ids else 0
 
-        roi = {
-            "id": self.roi_counter,
-            "start": {"x": rel_start_x, "y": rel_start_y},
-            "end": {"x": rel_end_x, "y": rel_end_y},
-        }
+        shape = self.category_shapes[self.current_category]
 
-        self.rois.append(roi)
-        self.roi_counter += 1
-        print(f"Added ROI {roi['id']}")
+        if shape == "square":
+            # Calculate center and half-size
+            center_x = (x1 + x2) / 2
+            center_y = (y1 + y2) / 2
+            half_size_px = max(abs(x2 - x1), abs(y2 - y1)) / 2
+
+            rel_center_x, rel_center_y = self.pixel_to_relative(center_x, center_y)
+            rel_half_size = half_size_px / self.width  # Relative to width
+
+            roi = {
+                "id": next_id,
+                "center": {"x": rel_center_x, "y": rel_center_y},
+                "relative_half_size": rel_half_size,
+            }
+        else:  # rectangle
+            start_x = min(x1, x2)
+            start_y = min(y1, y2)
+            end_x = max(x1, x2)
+            end_y = max(y1, y2)
+
+            rel_start_x, rel_start_y = self.pixel_to_relative(start_x, start_y)
+            rel_end_x, rel_end_y = self.pixel_to_relative(end_x, end_y)
+
+            roi = {
+                "id": next_id,
+                "start": {"x": rel_start_x, "y": rel_start_y},
+                "end": {"x": rel_end_x, "y": rel_end_y},
+            }
+
+        self.rois_dict[self.current_category].append(roi)
+        print(f"Added {self.current_category} ROI {roi['id']}")
 
     def draw_rois(self):
         """Draw all ROIs on the display image"""
         self.display_image = self.original_image.copy()
 
-        for roi in self.rois:
-            start_x, start_y = self.relative_to_pixel(
-                roi["start"]["x"], roi["start"]["y"]
-            )
-            end_x, end_y = self.relative_to_pixel(roi["end"]["x"], roi["end"]["y"])
+        for cat, rois in self.rois_dict.items():
+            color = self.category_colors[cat]
+            thickness = 3 if cat == self.current_category else 1
+            shape = self.category_shapes[cat]
 
-            cv2.rectangle(
-                self.display_image,
-                (start_x, start_y),
-                (end_x, end_y),
-                self.roi_color,
-                2,
-            )
-            cv2.putText(
-                self.display_image,
-                f"ROI {roi['id']}",
-                (start_x, start_y - 10),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                self.text_color,
-                1,
-            )
+            for roi in rois:
+                if shape == "square":
+                    cx, cy = self.relative_to_pixel(roi["center"]["x"], roi["center"]["y"])
+                    # Use width for relative half size to match add_roi
+                    half_px = int(roi["relative_half_size"] * self.width)
+                    start_pt = (cx - half_px, cy - half_px)
+                    end_pt = (cx + half_px, cy + half_px)
+                else:
+                    start_pt = self.relative_to_pixel(roi["start"]["x"], roi["start"]["y"])
+                    end_pt = self.relative_to_pixel(roi["end"]["x"], roi["end"]["y"])
+
+                cv2.rectangle(self.display_image, start_pt, end_pt, color, thickness)
+                
+                label = f"{cat} {roi['id']}"
+                if "name" in roi:
+                    label += f": {roi['name']}"
+                    
+                cv2.putText(
+                    self.display_image,
+                    label,
+                    (start_pt[0], start_pt[1] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    color,
+                    1,
+                )
+
+        # Draw current category label
+        overlay_text = f"Current Category: {self.current_category} ({self.category_shapes[self.current_category]})"
+        cv2.putText(
+            self.display_image,
+            overlay_text,
+            (20, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.0,
+            self.category_colors[self.current_category],
+            2,
+        )
 
     def mouse_callback(self, event, x, y, flags, param):
         """Handle mouse events"""
@@ -144,9 +221,22 @@ class InteractiveROIEditor:
             if self.drawing:
                 self.end_point = (x, y)
                 temp_image = self.display_image.copy()
-                cv2.rectangle(
-                    temp_image, self.start_point, self.end_point, self.preview_color, 2
-                )
+                
+                if self.category_shapes[self.current_category] == "square":
+                    # For square, we visualize it as dynamic square from start to end
+                    cx = (self.start_point[0] + self.end_point[0]) // 2
+                    cy = (self.start_point[1] + self.end_point[1]) // 2
+                    half_px = max(abs(x - self.start_point[0]), abs(y - self.start_point[1])) // 2
+                    cv2.rectangle(
+                        temp_image, 
+                        (cx - half_px, cy - half_px), 
+                        (cx + half_px, cy + half_px), 
+                        self.preview_color, 2
+                    )
+                else:
+                    cv2.rectangle(
+                        temp_image, self.start_point, self.end_point, self.preview_color, 2
+                    )
                 cv2.imshow("Interactive ROI Editor", temp_image)
 
         elif event == cv2.EVENT_LBUTTONUP:
@@ -172,15 +262,19 @@ class InteractiveROIEditor:
                 break
             elif key == ord("s"):  # Save
                 self.save_rois()
-            elif key == ord("c"):  # Clear all ROIs
-                self.rois = []
-                self.roi_counter = 1
+            elif key >= ord("1") and key <= ord(str(len(self.categories))):
+                idx = int(chr(key)) - 1
+                self.current_category = self.categories[idx]
+                print(f"Switched category to: {self.current_category}")
                 self.draw_rois()
-                print("Cleared all ROIs")
-            elif key == ord("d"):  # Delete last ROI
-                if self.rois:
-                    deleted_roi = self.rois.pop()
-                    print(f"Deleted ROI {deleted_roi['id']}")
+            elif key == ord("c"):  # Clear current category ROIs
+                self.rois_dict[self.current_category] = []
+                self.draw_rois()
+                print(f"Cleared all ROIs in {self.current_category}")
+            elif key == ord("d"):  # Delete last ROI in current category
+                if self.rois_dict[self.current_category]:
+                    deleted_roi = self.rois_dict[self.current_category].pop()
+                    print(f"Deleted {self.current_category} ROI {deleted_roi['id']}")
                     self.draw_rois()
 
         cv2.destroyAllWindows()
@@ -210,5 +304,5 @@ def main():
 
 if __name__ == "__main__":
     # To run from command line:
-    # python interactive_roi_editor.py --image Z2_2_1.png --rois rois_interactive.json
+    # python utils/roi_editor.py --image /Users/dmytro/Desktop/tns_code_16.3/time-space/zones/2/workspace_1773743484.png --rois /Users/dmytro/Desktop/tns_code_16.3/time-space/configs/rois_z2.json
     main()
