@@ -70,7 +70,7 @@ def display_workspace(id = 0, output_folder = "photos"):
             if event.type == sdl2.SDL_KEYDOWN:
                 if event.key.repeat != 0:
                     continue
-                if event.key.keysym.sym == sdl2.SDLK_ESCAPE:
+                if event.key.keysym.sym == sdl2.SDLK_ESCAPE or event.key.keysym.sym == sdl2.SDLK_7:
                     running = False
                 if event.key.keysym.sym == sdl2.SDLK_1:
                     print(f"Switching from camera {current_id}...")
