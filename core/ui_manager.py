@@ -232,6 +232,7 @@ class UIManager:
                     images = result["error_images"]
                     
                     for key, value in images.items():
+                        print(f"{key}")
                         file_path = os.path.join(log_dir, f"{key}.png")
                         cv2.imwrite(file_path, value)
 
