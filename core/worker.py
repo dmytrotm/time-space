@@ -352,10 +352,11 @@ def worker_logic(command_queue, result_queue, config_paths):
                                 zone = meta["zone"]
                                 timer.add(f"tape_detector_{roi_name}_z{zone}", avg_time)
 
-                            for result, meta in zip(tape_results, tape_batch_metadata):
+                            for result, meta, roi_image in zip(tape_results, tape_batch_metadata, tape_batch_images):
                                 zone = meta["zone"]
                                 roi_type = meta["type"]
                                 roi_id = meta["id"]
+                                roi_name = meta["name"]
 
                                 detected_classes = (
                                     result.boxes.cls.tolist()
