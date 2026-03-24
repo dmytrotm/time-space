@@ -170,6 +170,8 @@ def worker_logic(command_queue, result_queue, config_paths):
                     try:
                         timer = TimingLogger()
                         error_codes = set()
+                        error_images = {}
+
                         timer.start("total_inspection_time")
 
                         ws_tasks = []
@@ -276,6 +278,7 @@ def worker_logic(command_queue, result_queue, config_paths):
                                     roi_image
                                 ):
                                     error_codes.add(ERROR_CODES["GROUNDING_MISSING"])
+                                    error_images[roi_name] = roi_image
                                 timer.stop(
                                     f"grounding_detector_{roi_name}_z{zone_number}"
                                 )
@@ -309,6 +312,8 @@ def worker_logic(command_queue, result_queue, config_paths):
                                     roi_image, expected_colors
                                 ):
                                     error_codes.add(ERROR_CODES["WIRES_MISSING"])
+                                    error_images[roi_name] = roi_image
+
                                 timer.stop(f"wires_detector_{roi_name}_z{zone_number}")
                                 timer.add(
                                     "missing_wires_detector_total",
@@ -363,12 +368,16 @@ def worker_logic(command_queue, result_queue, config_paths):
                                         error_codes.add(
                                             ERROR_CODES["TAPE_NOT_DETECTED"]
                                         )
+                                        error_images[roi_name] = roi_image
+
                                         continue
 
                                     if roi_id == 2 and CONNECTOR_CLASS_ID in detected_classes:
                                         error_codes.add(
                                             ERROR_CODES["WRONG_ORIENTATION"]
                                         )
+                                        error_images[roi_name] = roi_image
+
                                         
                                         
 
@@ -385,10 +394,14 @@ def worker_logic(command_queue, result_queue, config_paths):
                                                 error_codes.add(
                                                     ERROR_CODES["TAPE_TOO_FAR"]
                                                 )
+                                                error_images[roi_name] = roi_image
+
                                             elif correct == TAPE_DEVIATION_WRONG_LENGTH:
                                                 error_codes.add(
                                                     ERROR_CODES["TAPE_WRONG_LENGTH"]
                                                 )
+                                                error_images[roi_name] = roi_image
+
                                         except (ValueError, IndexError):
                                             pass
 
@@ -397,11 +410,14 @@ def worker_logic(command_queue, result_queue, config_paths):
                                         error_codes.add(
                                             ERROR_CODES["LABEL_NOT_DETECTED"]
                                         )
+                                        error_images[roi_name] = roi_image
+
                                 elif roi_type == "CONNECTORS":
                                     if CONNECTOR_CLASS_ID not in detected_classes:
                                         error_codes.add(
                                             ERROR_CODES["WRONG_ORIENTATION"]
                                         )
+                                        error_images[roi_name] = roi_image
 
                         
                         timer.stop("total_inspection_time")
@@ -417,6 +433,17 @@ def worker_logic(command_queue, result_queue, config_paths):
                                     "error": combined_code,
                                 }
                             )
+                            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                            log_dir = os.path.join("log", timestamp)
+                            os.makedirs(log_dir, exist_ok=True)
+                            
+                            # 2. Зберігаємо кожне зображення окремо
+                            for code in error_codes:
+                                if code in error_images:
+                                    img = error_images[code]
+                                    # Формуємо шлях: log/timestamp/код.png
+                                    file_path = os.path.join(log_dir, f"{code}.png")
+                                    img.save(file_path)
                         else:
                             result_queue.put(
                                 {"status": "DONE", "success": True, "error": ""}
