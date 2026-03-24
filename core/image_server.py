@@ -13,7 +13,6 @@ class ImageServer:
         self.ordered_paths = None
         self.zone_mapping = {}
         
-        # Зашиваємо ваші залізобетонні шляхи за замовчуванням!
         default_cams = [
             "/dev/v4l/by-path/platform-xhci-hcd.0-usb-0:1:1.0-video-index0",
             "/dev/v4l/by-path/platform-xhci-hcd.1-usb-0:1.4:1.0-video-index0"
@@ -41,13 +40,11 @@ class ImageServer:
                         pass
                     cam.set(cv2.CAP_PROP_FRAME_WIDTH, 4000)
                     cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 3000)
-                    # Зменшуємо FPS, щоб не забивати USB-шину Raspberry Pi
                     cam.set(cv2.CAP_PROP_FPS, 5) 
-                    
+                    cam.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                     ret, _ = cam.read()
                     if ret:
                         backend_name = "V4L2" if backend == cv2.CAP_V4L2 else "ANY"
-                        # Виводимо тільки кінець довгого шляху для зручності читання в логах
                         short_name = str(cam_id).split('/')[-1] if isinstance(cam_id, str) else cam_id
                         print(f"Camera [{short_name}] connected successfully ({backend_name})")
                         return cam
@@ -67,15 +64,14 @@ class ImageServer:
                 short_name = str(cam_id).split('/')[-1] if isinstance(cam_id, str) else cam_id
                 print(f"Warning: Could not open camera [{short_name}] at startup.")
     
-    def _capture_with_temp_resolution(self, cam, warmup=10):
-        """Читає кадри. Викидає помилку, якщо камера відвалилася."""
-        for _ in range(warmup):
-            cam.read()
+    def _capture_with_temp_resolution(self, cam):
+        for _ in range(6):
+            cam.grab()  
         
-        ret, frame = cam.read()
+        ret, frame = cam.retrieve() 
         
         if not ret or frame is None:
-            raise RuntimeError("Camera lost connection or returned empty frame")
+            raise RuntimeError("Camera lost connection")
         
         return frame
     
@@ -94,22 +90,19 @@ class ImageServer:
                 cam = self.cameras[idx]
                 short_name = str(cam_id).split('/')[-1] if isinstance(cam_id, str) else cam_id
                 
-                # 1. Якщо камера мертва ще зі старту - пробуємо підняти
                 if cam is None:
                     print(f"Info: Camera [{short_name}] is offline. Reconnecting...")
                     cam = self._connect_single_camera(cam_id)
                     self.cameras[idx] = cam
                 
-                # 2. Якщо камера жива - робимо знімок
                 if cam is not None:
                     try:
                         img = self._capture_with_temp_resolution(cam)
                         images.append(img)
                     except Exception as e:
                         print(f"Warning: Camera [{short_name}] dropped during capture. Reconnecting...")
-                        cam.release() # Вбиваємо завислий об'єкт
+                        cam.release() #
                         
-                        # Гаряче перепідключення
                         cam = self._connect_single_camera(cam_id)
                         self.cameras[idx] = cam
                         
@@ -136,7 +129,6 @@ class ImageServer:
         return images
     
     def _detect_zone(self, image):
-        # ... ваш оригінальний код без змін ...
         markers = self.extractor.detect_markers(image)
         zone1_count = 0
         zone2_count = 0
@@ -166,7 +158,6 @@ class ImageServer:
             self.cameras = []
             print("All cameras released")
 
-# Тестовий запуск
 if __name__ == "__main__":
     server_cams = ImageServer(use_cameras=True)
     images = server_cams.take_photos()

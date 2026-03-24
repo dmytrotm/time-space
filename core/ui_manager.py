@@ -143,9 +143,13 @@ class UIManager:
                     raise ValueError("There is not images captured")
                 
                 self.verification_manager.trigger_verification(images)
+                return True
             except Exception as e:
                 print(f"Error starting verification: {e}")
                 self.is_running_verification = False
+                return False
+        return False
+
 
     def main_loop(self):
         """Main UI loop."""
