@@ -26,8 +26,6 @@ from utils.constants import (
     ZONES_DICT
 )
 
-import os
-from datetime import datetime
 
 
 def _preprocess_roi(args):
@@ -434,21 +432,11 @@ def worker_logic(command_queue, result_queue, config_paths):
                                     "status": "DONE",
                                     "success": False,
                                     "error": combined_code,
+                                    "error_images": error_images,
+    
                                 }
                             )
-                            if env['log_errors']:
-                                if not os.path.exists("log"):
-                                    os.makedirs("log")
-                                
-                                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                                log_dir = os.path.join("log", timestamp)
-                                os.makedirs(log_dir, exist_ok=True)
-                                
-                                for code in error_codes:
-                                    if code in error_images:
-                                        img = error_images[code]
-                                        file_path = os.path.join(log_dir, f"{code}.png")
-                                        img.save(file_path)
+                            
                         else:
                             result_queue.put(
                                 {"status": "DONE", "success": True, "error": ""}

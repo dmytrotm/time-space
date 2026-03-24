@@ -19,6 +19,8 @@ from queue import Queue
 import cv2
 
 
+import os
+from datetime import datetime
 # State constants
 STATE_START = 0
 STATE_LOADING = 1
@@ -221,6 +223,18 @@ class UIManager:
                 else:
                     current_state = STATE_ERROR
                     error_message = result["error"]
+                    if not os.path.exists("log"):
+                        os.makedirs("log")
+                    
+                    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                    log_dir = os.path.join("log", timestamp)
+                    os.makedirs(log_dir, exist_ok=True)
+                    
+                    for code in error_codes:
+                        if code in error_images:
+                            img = error_images[code]
+                            file_path = os.path.join(log_dir, f"{code}.png")
+                            img.save(file_path)
 
             if not keys.empty():
                 key = keys.get()
