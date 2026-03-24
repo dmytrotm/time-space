@@ -141,11 +141,7 @@ class UIManager:
 
                 if not images or len(images) != 2:
                     raise ValueError("There is not images captured")
-                if len(images) == 2:
-                    i=0
-                    for image in images:
-                        i += 1
-                        cv2.imwrite(f"{i}.png",image)
+                
                 self.verification_manager.trigger_verification(images)
             except Exception as e:
                 print(f"Error starting verification: {e}")

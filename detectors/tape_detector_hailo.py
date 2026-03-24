@@ -146,9 +146,12 @@ class TapeDetectorHailo(BaseDetector):
 
         for img in images:
             original_images.append(img)
-            img = self.preprocess.preprocess(img)
-            resized = cv2.resize(img, (self.model_w, self.model_h))
-            batch_data.append(resized)
+            
+            resized = cv2.resize(img, (self.model_w, self.model_h), interpolation=cv2.INTER_LINEAR)
+            
+            img_rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+            
+            batch_data.append(img_rgb)
         
         batch_numpy = np.array(batch_data, dtype=np.uint8)
 
@@ -159,7 +162,6 @@ class TapeDetectorHailo(BaseDetector):
         with self.network_group.activate():
             with InferVStreams(self.network_group, self.input_params, self.output_params) as pipeline:
                 res = pipeline.infer({input_name: batch_numpy})
-        
         final_results = []
         for i, img_raw_result in enumerate(batch_numpy): 
             orig_img = original_images[i]
@@ -174,49 +176,119 @@ class TapeDetectorHailo(BaseDetector):
             
         return final_results
 
-    def _parse_to_yolo_format(self, class_list, orig_w, orig_h):
-        detections = []
-
-        if class_list is None or len(class_list) == 0:
-            return np.empty((0, 6), dtype=np.float32)
-
-        for class_id, class_boxes in enumerate(class_list):
-            if class_boxes is None or len(class_boxes) == 0:
-                continue
+    def _parse_to_yolo_format(self, raw_tensors, orig_w, orig_h):
+        # raw_tensors - це словник {назва_шару: тензор_розміру_(H, W, C)}
+        tensors = list(raw_tensors.values())
+        
+        # Групуємо тензори за їх розміром (H). Для 576x576 це будуть розміри 72, 36 та 18
+        grouped = {}
+        for t in tensors:
+            h = t.shape[0]
+            if h not in grouped:
+                grouped[h] = []
+            grouped[h].append(t)
             
-            for box in class_boxes:
-                if len(box) < 5: continue
-                ymin, xmin, ymax, xmax, score = box
+        strides = [8, 16, 32]
+        reg_max = 16 # Стандарт для YOLOv8/11
+        proj = np.arange(reg_max, dtype=np.float32)
+        
+        all_boxes, all_scores, all_class_ids = [], [], []
+        
+        for stride in strides:
+            h = self.model_h // stride
+            w = self.model_w // stride
+            
+            # Знаходимо пару тензорів для поточного масштабу
+            if h not in grouped or len(grouped[h]) != 2:
+                continue
                 
-                if score < self.conf_threshold:
-                    print(score,class_id)
-                    continue
+            t1, t2 = grouped[h]
+            # Тензор з боксами завжди має 64 канали (4 * reg_max)
+            if t1.shape[-1] == 64: 
+                box_tensor, cls_tensor = t1, t2
+            else:
+                box_tensor, cls_tensor = t2, t1
                 
-                x1 = xmin * orig_w
-                y1 = ymin * orig_h
-                x2 = xmax * orig_w
-                y2 = ymax * orig_h
+            # Перетворюємо (H, W, C) у плоский вигляд (H*W, C)
+            box_tensor = box_tensor.reshape(-1, 4, reg_max)
+            cls_tensor = cls_tensor.reshape(-1, cls_tensor.shape[-1])
+            
+            # --- 1. Класи (Sigmoid) ---
+            cls_scores = 1.0 / (1.0 + np.exp(-cls_tensor)) # Застосовуємо Sigmoid
+            max_scores = np.max(cls_scores, axis=-1)
+            max_classes = np.argmax(cls_scores, axis=-1)
+            
+            # Фільтруємо за порогом (confidence)
+            mask = max_scores > self.conf_threshold
+            if not np.any(mask):
+                continue
                 
-                detections.append([x1, y1, x2, y2, score, int(class_id)])
+            filtered_scores = max_scores[mask]
+            filtered_classes = max_classes[mask]
+            filtered_boxes = box_tensor[mask]
+            
+            # --- 2. Бокси (DFL: Softmax + Dot Product) ---
+            box_max = np.max(filtered_boxes, axis=-1, keepdims=True)
+            box_exp = np.exp(filtered_boxes - box_max)
+            box_softmax = box_exp / np.sum(box_exp, axis=-1, keepdims=True)
+            boxes_ltrb = np.sum(box_softmax * proj, axis=-1) # Отримуємо дистанції до країв
+            
+            # --- 3. Декодування координат ---
+            xv, yv = np.meshgrid(np.arange(w), np.arange(h))
+            grid = np.stack((xv, yv), axis=2).reshape(-1, 2).astype(np.float32) + 0.5
+            grid = grid[mask]
+            
+            x1y1 = grid - boxes_ltrb[:, :2]
+            x2y2 = grid + boxes_ltrb[:, 2:]
+            boxes_xyxy = np.concatenate((x1y1, x2y2), axis=-1) * stride
+            
+            all_boxes.append(boxes_xyxy)
+            all_scores.append(filtered_scores)
+            all_class_ids.append(filtered_classes)
+            
+        if not all_boxes:
+            return np.empty((0, 6), dtype=np.float32)
+            
+        all_boxes = np.concatenate(all_boxes, axis=0)
+        all_scores = np.concatenate(all_scores, axis=0)
+        all_class_ids = np.concatenate(all_class_ids, axis=0)
+        
+        # Масштабуємо координати під оригінальний розмір картинки
+        scale_x = orig_w / self.model_w
+        scale_y = orig_h / self.model_h
+        all_boxes[:, 0] *= scale_x
+        all_boxes[:, 1] *= scale_y
+        all_boxes[:, 2] *= scale_x
+        all_boxes[:, 3] *= scale_y
+        
+        # --- 4. NMS (Фільтрація боксів, що перекриваються) ---
+        boxes_xywh = np.copy(all_boxes)
+        boxes_xywh[:, 2] = all_boxes[:, 2] - all_boxes[:, 0] # width
+        boxes_xywh[:, 3] = all_boxes[:, 3] - all_boxes[:, 1] # height
+        
+        # Робимо NMS незалежним для різних класів (Class-aware NMS)
+        max_coord = 10000.0
+        shifted_boxes = boxes_xywh.copy()
+        shifted_boxes[:, 0] += all_class_ids * max_coord
+        shifted_boxes[:, 1] += all_class_ids * max_coord
 
-        if not detections:
-             return np.empty((0, 6), dtype=np.float32)
-
-        return np.array(detections, dtype=np.float32)
-    
-    def release(self):
-        if self._resources_released:
-            return
-        print("[Hailo] Releasing resources...")
-        try:
-            pass
-        except Exception as e:
-            print(f"[Hailo Warning] Error during release: {e}")
-        finally:
-            self._resources_released = True
-
-    def __del__(self):
-        self.release()
+        iou_threshold = 0.45 # Стандартний IOU поріг для YOLO
+        indices = cv2.dnn.NMSBoxes(
+            shifted_boxes.tolist(), 
+            all_scores.tolist(), 
+            self.conf_threshold, 
+            iou_threshold
+        )
+        
+        if len(indices) == 0:
+            return np.empty((0, 6), dtype=np.float32)
+            
+        indices = indices.flatten()
+        final_boxes = all_boxes[indices]
+        final_scores = all_scores[indices].reshape(-1, 1)
+        final_classes = all_class_ids[indices].reshape(-1, 1).astype(np.float32)
+        
+        return np.concatenate((final_boxes, final_scores, final_classes), axis=-1)
 
 
 
@@ -237,24 +309,41 @@ class MultiClassHailoDetector(BaseDetector):
         """Коротка обгортка для одного зображення"""
         return self.predict_batch([image])[0]
 
-    def predict_batch(self, images):
-        """Основна логіка інференсу та злиття результатів"""
-        results1 = self.det1.predict_batch(images)
-        results2 = self.det2.predict_batch(images)
+    def predict_batch(self, images, metadata=None):
+        """Розумний роутинг: відправляємо картинку тільки у відповідну модель"""
         
-        merged_results = []
-        for r1, r2 in zip(results1, results2):
-            boxes1 = np.copy(r1.boxes.data)
-            boxes2 = np.copy(r2.boxes.data)
-            
-            if len(boxes1) > 0:
-                boxes1[:, 5] += 1
-                
-            merged_boxes = np.vstack((boxes1, boxes2))
-            
-            merged_results.append(YoloLikeResult(r1.orig_img, merged_boxes, self.merged_names))
-            
-        return merged_results
+        if metadata is None:
+            print("[Warning] No metadata provided, running both models on all images!")
+            pass
+
+        results = [None] * len(images)
+        
+        tape_indices, tape_images = [], []
+        conn_indices, conn_images = [], []
+        
+        for i, (img, meta) in enumerate(zip(images, metadata)):
+            if meta["type"] in ["TAPE", "LABEL"]:
+                tape_indices.append(i)
+                tape_images.append(img)
+            elif meta["type"] == "CONNECTORS":
+                conn_indices.append(i)
+                conn_images.append(img)
+
+        if tape_images:
+            res1 = self.det1.predict_batch(tape_images)
+            for idx, r1 in zip(tape_indices, res1):
+                boxes = np.copy(r1.boxes.data)
+                if len(boxes) > 0:
+                    boxes[:, 5] += 1  
+                results[idx] = YoloLikeResult(r1.orig_img, boxes, self.merged_names)
+
+        if conn_images:
+            res2 = self.det2.predict_batch(conn_images)
+            for idx, r2 in zip(conn_indices, res2):
+                boxes = np.copy(r2.boxes.data)
+                results[idx] = YoloLikeResult(r2.orig_img, boxes, self.merged_names)
+
+        return results
 
     def release(self):
         """Правильне закриття всіх ресурсів Hailo"""

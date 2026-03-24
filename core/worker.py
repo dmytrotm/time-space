@@ -61,7 +61,6 @@ def _preprocess_roi(args):
             processed_image = cv2.resize(cropped_roi, target_size)
         else:
             processed_image = cropped_roi
-        cv2.imwrite(f"{roi_name}.png", processed_image)
         return roi_name, processed_image, roi_config, zone_number
 
     except Exception as e:
@@ -337,7 +336,7 @@ def worker_logic(command_queue, result_queue, config_paths):
                         if tape_batch_images:
                             timer.start("tape_detector_total")
                             tape_results = detectors["yolo_detector"].predict_batch(
-                                tape_batch_images
+                                tape_batch_images, tape_batch_metadata
                             )
                             total_tape_time = timer.stop("tape_detector_total")
 
