@@ -233,7 +233,7 @@ class UIManager:
                     
                     for key, value in images.items():
                         file_path = os.path.join(log_dir, f"{key}.png")
-                        value.save(file_path)
+                        cv2.imwrite(file_path, value)
 
             if not keys.empty():
                 key = keys.get()
