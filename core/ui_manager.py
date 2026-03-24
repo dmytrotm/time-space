@@ -229,13 +229,11 @@ class UIManager:
                     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                     log_dir = os.path.join("log", timestamp)
                     os.makedirs(log_dir, exist_ok=True)
-                    error_codes = result["error_images"]
+                    images = result["error_images"]
                     
-                    for code in error_codes:
-                        if code in error_images:
-                            img = error_images[code]
-                            file_path = os.path.join(log_dir, f"{code}.png")
-                            img.save(file_path)
+                    for key, value in images.items():
+                        file_path = os.path.join(log_dir, f"{key}.png")
+                        value.save(file_path)
 
             if not keys.empty():
                 key = keys.get()
