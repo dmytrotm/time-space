@@ -8,7 +8,7 @@ dataset*
 __pycache__
 idea
 venv
-output
+*output*
 *rois*
 *discovery
 workspace
@@ -16,8 +16,6 @@ project_output
 masks
 tapes
 .DS_Store
-
-output*
 
 yolo11dataset
 yolo11dataset_grouped
