@@ -229,7 +229,7 @@ class UIManager:
                     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                     log_dir = os.path.join("log", timestamp)
                     os.makedirs(log_dir, exist_ok=True)
-                    error_codes = result["error_codes"]
+                    error_codes = result["error_images"]
                     
                     for code in error_codes:
                         if code in error_images:
