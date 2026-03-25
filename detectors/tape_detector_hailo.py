@@ -354,3 +354,6 @@ class MultiClassHailoDetector(BaseDetector):
 
     def __del__(self):
         self.release()
+
+
+

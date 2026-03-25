@@ -428,15 +428,24 @@ def worker_logic(command_queue, result_queue, config_paths):
 
                         if error_codes:
                             combined_code = "".join(sorted(error_codes))
-                            result_queue.put(
-                                {
-                                    "status": "DONE",
-                                    "success": False,
-                                    "error": combined_code,
-                                    "error_images": error_images,
-    
-                                }
-                            )
+                            if env["log_errors"]:
+                                result_queue.put(
+                                    {
+                                        "status": "DONE",
+                                        "success": False,
+                                        "error": combined_code,
+                                        "error_images": error_images,
+
+                                    }
+                                )
+                            else: 
+                                result_queue.put(
+                                    {
+                                        "status": "DONE",
+                                        "success": False,
+                                        "error": combined_code,
+                                    }
+                                )
                             
                         else:
                             result_queue.put(
