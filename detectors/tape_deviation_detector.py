@@ -12,7 +12,7 @@ class TapeDeviationDetector:
         x = self.positions_json[index * 2]["Mean"]
         dx = 0.3
         w = self.positions_json[index * 2 + 1]["Mean"]
-        dw = self.positions_json[index * 2 + 1]["IQR"] * 2
+        dw = self.positions_json[index * 2 + 1]["IQR"] * 3.5
 
         if abs(x - new_x) > dx:
             return -1
