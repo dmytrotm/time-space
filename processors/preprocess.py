@@ -1,13 +1,12 @@
 import cv2
 import numpy as np
 
-
 class Preprocessor:
     def __init__(self):
         self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 
-    def preprocess(self, image):
-        resized = cv2.resize(image, (640, 640), interpolation=cv2.INTER_LINEAR)
+    def preprocess(self, image, target_size=(576, 576)):
+        resized = cv2.resize(image, target_size, interpolation=cv2.INTER_LINEAR)
 
         lab = cv2.cvtColor(resized, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
