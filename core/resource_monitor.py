@@ -145,45 +145,116 @@ class ResourceMonitor:
         """Get Hailo 8L accelerator information."""
         hailo_info = {"available": False, "type": "hailo"}
         
-        try:
-            # Check if Hailo device is available
-            result = subprocess.run(['hailort', 'query'], 
-                                  capture_output=True, text=True, timeout=5)
-            if result.returncode == 0:
+        # Method 1: Check for Hailo device files
+        if self._check_hailo_device_files():
+            hailo_info.update({
+                "available": True,
+                "name": "Hailo 8L",
+                "status": "connected",
+                "detection_method": "device_files"
+            })
+            
+        # Method 2: Try hailort CLI
+        if not hailo_info["available"]:
+            try:
+                result = subprocess.run(['hailort', 'query'], 
+                                      capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    hailo_info.update({
+                        "available": True,
+                        "name": "Hailo 8L",
+                        "status": "connected",
+                        "detection_method": "hailort_cli"
+                    })
+                    
+            except FileNotFoundError:
+                self.logger.debug("hailort CLI not found")
+            except subprocess.TimeoutExpired:
+                self.logger.debug("Hailo query timeout")
+            except Exception as e:
+                self.logger.debug(f"hailort query failed: {e}")
+        
+        # Method 3: Try Python Hailo RT library
+        if not hailo_info["available"]:
+            if self._check_hailo_python():
                 hailo_info.update({
                     "available": True,
                     "name": "Hailo 8L",
-                    "status": "connected"
+                    "status": "connected",
+                    "detection_method": "python_library"
                 })
-                
-                # Try to get more detailed info
-                try:
-                    fw_result = subprocess.run(['hailort', 'fw-control', '--get-fw-version'], 
-                                             capture_output=True, text=True, timeout=5)
-                    if fw_result.returncode == 0:
-                        hailo_info["firmware_version"] = fw_result.stdout.strip()
-                except:
-                    pass
-                    
-                # Try to get device utilization
-                try:
-                    util_result = subprocess.run(['hailort', 'utilization-monitor', '--timeout-ms', '1000'], 
-                                               capture_output=True, text=True, timeout=5)
-                    if util_result.returncode == 0:
-                        # Parse utilization data if available
-                        hailo_info["utilization_available"] = True
-                except:
-                    hailo_info["utilization_available"] = False
-                    
-        except FileNotFoundError:
-            # hailort CLI not found
-            pass
-        except subprocess.TimeoutExpired:
-            self.logger.debug("Hailo query timeout")
-        except Exception as e:
-            self.logger.debug(f"Could not get Hailo info: {e}")
+        
+        # If Hailo is detected, try to get more info
+        if hailo_info["available"]:
+            self._get_hailo_detailed_info(hailo_info)
             
         return hailo_info
+        
+    def _check_hailo_device_files(self) -> bool:
+        """Check for Hailo device files in /dev/."""
+        import glob
+        try:
+            # Look for Hailo device files
+            hailo_devices = glob.glob('/dev/hailo*')
+            if hailo_devices:
+                self.logger.debug(f"Found Hailo devices: {hailo_devices}")
+                return True
+                
+            # Also check for PCI device
+            pci_devices = glob.glob('/sys/bus/pci/devices/*/hw/hailo*')
+            if pci_devices:
+                self.logger.debug(f"Found Hailo PCI devices: {pci_devices}")
+                return True
+                
+        except Exception as e:
+            self.logger.debug(f"Error checking Hailo device files: {e}")
+            
+        return False
+        
+    def _check_hailo_python(self) -> bool:
+        """Check if Hailo Python library is available."""
+        try:
+            import hailo
+            self.logger.debug("Hailo Python library found")
+            return True
+        except ImportError:
+            self.logger.debug("Hailo Python library not found")
+            return False
+        except Exception as e:
+            self.logger.debug(f"Error importing Hailo library: {e}")
+            return False
+            
+    def _get_hailo_detailed_info(self, hailo_info: Dict):
+        """Get detailed Hailo information."""
+        # Try to get firmware version
+        try:
+            fw_result = subprocess.run(['hailort', 'fw-control', '--get-fw-version'], 
+                                     capture_output=True, text=True, timeout=5)
+            if fw_result.returncode == 0:
+                hailo_info["firmware_version"] = fw_result.stdout.strip()
+        except:
+            pass
+            
+        # Try to get device info
+        try:
+            info_result = subprocess.run(['hailort', 'info'], 
+                                       capture_output=True, text=True, timeout=5)
+            if info_result.returncode == 0:
+                hailo_info["device_info"] = info_result.stdout.strip()
+        except:
+            pass
+            
+        # Try to get utilization monitoring capability
+        try:
+            util_result = subprocess.run(['hailort', 'utilization-monitor', '--timeout-ms', '1000'], 
+                                       capture_output=True, text=True, timeout=5)
+            if util_result.returncode == 0:
+                hailo_info["utilization_available"] = True
+                hailo_info["utilization_output"] = util_result.stdout.strip()
+            else:
+                hailo_info["utilization_available"] = False
+        except:
+            hailo_info["utilization_available"] = False
         
     def _get_cpu_temperature(self) -> Optional[float]:
         """Get CPU temperature for Raspberry Pi."""
@@ -295,9 +366,12 @@ GPU Information:
                 # Hailo 8L specific information
                 summary += f"""- Accelerator: {gpu_info.get("name", "Hailo 8L")}
 - Status: {gpu_info.get("status", "Unknown")}
+- Detection method: {gpu_info.get("detection_method", "Unknown")}
 - Firmware: {gpu_info.get("firmware_version", "Not available")}
 - Utilization monitoring: {"Available" if gpu_info.get("utilization_available") else "Not available"}
 """
+                if gpu_info.get("device_info"):
+                    summary += f"- Device info: {gpu_info.get('device_info')}\n"
             else:
                 # Standard GPU information
                 gpu_loads = [sample["gpu"]["load_percent"] for sample in self.resource_data if sample["gpu"]["available"]]
@@ -319,6 +393,56 @@ GPU Information:
         except Exception as e:
             self.logger.error(f"Error saving summary: {e}")
             
+    def debug_hailo_detection(self) -> Dict:
+        """Debug method to check Hailo detection status."""
+        debug_info = {
+            "device_files_check": False,
+            "hailort_cli_check": False,
+            "python_library_check": False,
+            "hailort_output": None,
+            "device_files_found": [],
+            "errors": []
+        }
+        
+        # Check device files
+        try:
+            import glob
+            hailo_devices = glob.glob('/dev/hailo*')
+            pci_devices = glob.glob('/sys/bus/pci/devices/*/hw/hailo*')
+            debug_info["device_files_found"] = hailo_devices + pci_devices
+            debug_info["device_files_check"] = len(debug_info["device_files_found"]) > 0
+        except Exception as e:
+            debug_info["errors"].append(f"Device file check error: {e}")
+        
+        # Check hailort CLI
+        try:
+            result = subprocess.run(['which', 'hailort'], 
+                                  capture_output=True, text=True, timeout=5)
+            debug_info["hailort_cli_check"] = result.returncode == 0
+            
+            if result.returncode == 0:
+                # Try to run hailort query
+                query_result = subprocess.run(['hailort', 'query'], 
+                                            capture_output=True, text=True, timeout=5)
+                debug_info["hailort_output"] = {
+                    "returncode": query_result.returncode,
+                    "stdout": query_result.stdout,
+                    "stderr": query_result.stderr
+                }
+        except Exception as e:
+            debug_info["errors"].append(f"hailort CLI check error: {e}")
+        
+        # Check Python library
+        try:
+            import hailo
+            debug_info["python_library_check"] = True
+        except ImportError:
+            debug_info["python_library_check"] = False
+        except Exception as e:
+            debug_info["errors"].append(f"Python library check error: {e}")
+        
+        return debug_info
+        
     def get_current_stats(self) -> Dict:
         """Get current resource statistics."""
         return self._collect_sample()
