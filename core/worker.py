@@ -3,6 +3,13 @@ import traceback
 import cv2
 from concurrent.futures import ThreadPoolExecutor
 from core.timing import TimingLogger
+try:
+    from core.performance_profiler import profile_operation
+except ImportError:
+    def profile_operation(name=None):
+        def decorator(func):
+            return func
+        return decorator
 from detectors import (
     GroundingWireDetector,
     TapeDetector,
@@ -28,6 +35,7 @@ from utils.constants import (
 
 
 
+@profile_operation("preprocess_roi")
 def _preprocess_roi(args):
     """
     Helper function to process a single ROI in a separate thread.
@@ -83,6 +91,7 @@ def _extract_workspace_helper(args):
         return -1, None
 
 
+@profile_operation("orientation_check")
 def _orientation_check_helper(args):
     """
     Helper to check orientation in a thread.
@@ -97,6 +106,7 @@ def _orientation_check_helper(args):
         return roi_name, zone_number, False
 
 
+@profile_operation("twisted_wires_check")
 def _twisted_wires_check_helper(args):
     """
     Helper to check for twisted wires in a thread.
@@ -111,6 +121,7 @@ def _twisted_wires_check_helper(args):
         return zone_number, False
 
 
+@profile_operation("worker_logic")
 def worker_logic(command_queue, result_queue, config_paths):
     """
     Main logic for the worker process.

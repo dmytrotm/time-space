@@ -101,8 +101,10 @@ if __name__ == "__main__":
             resource_monitor.stop_monitoring()
             print("Resource monitoring data saved to resource_monitor.json and resource_monitor_summary.txt")
         if 'performance_profiler' in locals():
-            performance_profiler.save_data()
-            print("Performance profiling data saved to performance_profile.json")
+            if performance_profiler.save_data():
+                print("Performance profiling data saved to performance_profile.json")
+            else:
+                print("No performance data collected (profiler enabled but no operations were profiled)")
         try:
             import sdl2
             import sdl2.ext
