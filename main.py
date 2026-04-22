@@ -57,11 +57,7 @@ if __name__ == "__main__":
                 exit(1)
         
         print(f"\nInitializing cameras: {args.camera_ids}")
-        camera_paths = [
-    "/dev/v4l/by-path/platform-xhci-hcd.0-usb-0:1:1.0-video-index0",
-    "/dev/v4l/by-path/platform-xhci-hcd.1-usb-0:1.4:1.0-video-index0"
-]
-        cameras = ImageServer(use_cameras=True, camera_ids=camera_paths)
+        cameras = ImageServer(use_cameras=True, camera_ids=args.camera_ids)
         #cameras = ImageServer("Z1_0_1.png","Z2_0_1.png")
 
         verification_manager = VerificationManager()

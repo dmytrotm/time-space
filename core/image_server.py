@@ -13,12 +13,10 @@ class ImageServer:
         self.ordered_paths = None
         self.zone_mapping = {}
         
-        default_cams = [
-            "/dev/v4l/by-path/platform-xhci-hcd.0-usb-0:1:1.0-video-index0",
-            "/dev/v4l/by-path/platform-xhci-hcd.1-usb-0:1.4:1.0-video-index0"
-        ]
+        # Default to scanning first 10 camera IDs
+        default_cams = list(range(10))
         self.camera_ids = camera_ids if camera_ids is not None else default_cams
-        self.cameras = [None] * len(self.camera_ids)
+        self.cameras = []
         
         # Ініціалізація ArUco
         config_path = os.path.join(os.path.dirname(__file__), '..', 'configs', 'custom_markers.yaml')
@@ -57,12 +55,39 @@ class ImageServer:
         return None
 
     def _init_cameras(self):
-        """Ініціалізація всіх камер"""
-        for idx, cam_id in enumerate(self.camera_ids):
-            self.cameras[idx] = self._connect_single_camera(cam_id)
-            if self.cameras[idx] is None:
-                short_name = str(cam_id).split('/')[-1] if isinstance(cam_id, str) else cam_id
-                print(f"Warning: Could not open camera [{short_name}] at startup.")
+        """Initialize cameras with proper settings."""
+        self.cameras = []
+        for cam_id in self.camera_ids:
+            cam = None
+            # Try V4L2 first, then fall back to CAP_ANY
+            for backend in [cv2.CAP_V4L2, cv2.CAP_ANY]:
+                try:
+                    cam = cv2.VideoCapture(cam_id, backend)
+                    if cam.isOpened():
+                        # Try to set MJPG if possible
+                        try:
+                            cam.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                        except:
+                            pass
+                        cam.set(cv2.CAP_PROP_FRAME_WIDTH, 4000)
+                        cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 3000)
+                        
+                        # Test if we can actually read a frame
+                        ret, _ = cam.read()
+                        if ret:
+                            self.cameras.append(cam)
+                            backend_name = "V4L2" if backend == cv2.CAP_V4L2 else "ANY"
+                            print(f"Camera {cam_id} initialized successfully (using {backend_name})")
+                            break
+                        else:
+                            cam.release()
+                except Exception as e:
+                    if cam is not None:
+                        cam.release()
+                    continue
+            
+            if cam is None or not cam.isOpened():
+                print(f"Warning: Could not open camera {cam_id}")
     
     def _capture_with_temp_resolution(self, cam):
         for _ in range(6):
