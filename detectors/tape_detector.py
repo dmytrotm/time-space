@@ -1,13 +1,6 @@
 from ultralytics import YOLO
 from processors.preprocess import Preprocessor
 from detectors.base_detector import BaseDetector
-try:
-    from core.performance_profiler import profile_method
-except ImportError:
-    def profile_method(name=None):
-        def decorator(func):
-            return func
-        return decorator
 
 
 class TapeDetector(BaseDetector):
@@ -17,11 +10,9 @@ class TapeDetector(BaseDetector):
         self.preprocessor = Preprocessor()
         self.conf_threshold = conf_threshold
 
-    @profile_method()
     def detect(self, image):
         return self.predict_batch([image])[0]
 
-    @profile_method()
     def predict_batch(self, images):
         """
         Run inference on a batch of images.

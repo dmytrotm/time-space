@@ -30,19 +30,17 @@ STATE_SUCCESS = 3
 
 class UIManager:
     def __init__(
-        self, verification_manager, image_server, window_width=800, window_height=480, resource_monitor=None, performance_profiler=None
+        self, verification_manager, image_server, window_width=800, window_height=480, resource_monitor=None
     ):
         """
         Args:
             verification_manager: Instance of VerificationManager
             image_server: Instance of ImageServer
             resource_monitor: Optional instance of ResourceMonitor
-            performance_profiler: Optional instance of PerformanceProfiler
         """
         self.verification_manager = verification_manager
         self.image_server = image_server
         self.resource_monitor = resource_monitor
-        self.performance_profiler = performance_profiler
         self.WIDTH = window_width
         self.HEIGHT = window_height
         self.is_running_verification = False
@@ -92,18 +90,6 @@ class UIManager:
                 font_small,
                 f"Resource Monitor: {status}",
                 self.HEIGHT // 2 + 40,
-                color,
-            )
-        
-        # Show performance profiler status
-        if self.performance_profiler:
-            status = "ENABLED" if self.performance_profiler.is_enabled() else "DISABLED"
-            color = (50, 255, 50) if self.performance_profiler.is_enabled() else (255, 50, 50)
-            self.render_centered_text(
-                renderer,
-                font_small,
-                f"Performance Profiler: {status}",
-                self.HEIGHT // 2 + 70,
                 color,
             )
 
