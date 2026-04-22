@@ -2,6 +2,13 @@ import cv2
 import numpy as np
 import logging
 from processors.aruco_detector import IArucoDetector
+try:
+    from core.performance_profiler import profile_method
+except ImportError:
+    def profile_method(name=None):
+        def decorator(func):
+            return func
+        return decorator
 
 class WorkspaceExtractor:
     def __init__(self, aruco_detector: IArucoDetector, defined_zones: dict = None):
@@ -23,6 +30,7 @@ class WorkspaceExtractor:
 
         return rect
 
+    @profile_method()
     def detect_zone(self, image):
         """
         Шукає маркери і перевіряє, чи співпадають вони з якоюсь із заданих зон.
@@ -78,6 +86,7 @@ class WorkspaceExtractor:
 
         return warped
 
+    @profile_method()
     def extract_workspace(self, image):
         """
         Комплексний метод: знаходить зону і одразу вирізає її.

@@ -13,6 +13,7 @@ except ImportError:
         KEY_2 = 3
         KEY_7 = 4
         KEY_R = 5
+        KEY_P = 6
 
 import time
 import threading
@@ -31,17 +32,19 @@ STATE_SUCCESS = 3
 
 class UIManager:
     def __init__(
-        self, verification_manager, image_server, window_width=800, window_height=480, resource_monitor=None
+        self, verification_manager, image_server, window_width=800, window_height=480, resource_monitor=None, performance_profiler=None
     ):
         """
         Args:
             verification_manager: Instance of VerificationManager
             image_server: Instance of ImageServer
             resource_monitor: Optional instance of ResourceMonitor
+            performance_profiler: Optional instance of PerformanceProfiler
         """
         self.verification_manager = verification_manager
         self.image_server = image_server
         self.resource_monitor = resource_monitor
+        self.performance_profiler = performance_profiler
         self.WIDTH = window_width
         self.HEIGHT = window_height
         self.is_running_verification = False
@@ -91,6 +94,18 @@ class UIManager:
                 font_small,
                 f"Resource Monitor: {status} (Press KEY_R to toggle)",
                 self.HEIGHT // 2 + 40,
+                color,
+            )
+        
+        # Show performance profiler status
+        if self.performance_profiler:
+            status = "ON" if self.performance_profiler.is_enabled() else "OFF"
+            color = (50, 255, 50) if self.performance_profiler.is_enabled() else (255, 50, 50)
+            self.render_centered_text(
+                renderer,
+                font_small,
+                f"Performance Profiler: {status} (Press KEY_P to toggle)",
+                self.HEIGHT // 2 + 70,
                 color,
             )
 
@@ -158,6 +173,18 @@ class UIManager:
                 print("Resource monitoring resumed")
         else:
             print("Resource monitor not available")
+
+    def toggle_performance_profiler(self):
+        """Toggle performance profiling on/off."""
+        if self.performance_profiler:
+            if self.performance_profiler.is_enabled():
+                self.performance_profiler.disable()
+                print("Performance profiling disabled")
+            else:
+                self.performance_profiler.enable()
+                print("Performance profiling enabled")
+        else:
+            print("Performance profiler not available")
 
     def start_verification(self):
         """Start the verification process."""
@@ -288,6 +315,8 @@ class UIManager:
                             current_state = STATE_START
                 elif key == ecodes.KEY_R:
                     self.toggle_resource_monitor()
+                elif key == ecodes.KEY_P:
+                    self.toggle_performance_profiler()
 
             sdl2.SDL_SetRenderDrawColor(renderer, 30, 30, 40, 255)
             sdl2.SDL_RenderClear(renderer)

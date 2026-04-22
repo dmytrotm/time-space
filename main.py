@@ -3,6 +3,7 @@ from core import (
     UIManager,
     VerificationManager,
     ResourceMonitor,
+    init_profiler,
 )
 from utils.constants import (
     WINDOW_WIDTH,
@@ -20,6 +21,8 @@ if __name__ == "__main__":
                         help='Camera IDs to use (default: 0 1)')
     parser.add_argument('--no-resource-monitor', action='store_true',
                         help='Disable resource monitoring (default: enabled)')
+    parser.add_argument('--no-performance-profiler', action='store_true',
+                        help='Disable performance profiling (default: enabled)')
     
     args = parser.parse_args()
     
@@ -63,6 +66,14 @@ if __name__ == "__main__":
         verification_manager = VerificationManager()
         verification_manager.start()
         
+        # Initialize performance profiler if not disabled
+        performance_profiler = None
+        if not args.no_performance_profiler:
+            performance_profiler = init_profiler(enabled=True, log_file="performance_profile.json")
+            print("Performance profiling enabled")
+        else:
+            print("Performance profiling disabled")
+        
         # Initialize resource monitor if not disabled
         resource_monitor = None
         if not args.no_resource_monitor:
@@ -72,7 +83,7 @@ if __name__ == "__main__":
         else:
             print("Resource monitoring disabled")
         
-        ui_manager = UIManager(verification_manager, cameras, WINDOW_WIDTH, WINDOW_HEIGHT, resource_monitor)
+        ui_manager = UIManager(verification_manager, cameras, WINDOW_WIDTH, WINDOW_HEIGHT, resource_monitor, performance_profiler)
         ui_manager.main_loop()
         
     except KeyboardInterrupt:
@@ -89,6 +100,9 @@ if __name__ == "__main__":
         if 'resource_monitor' in locals():
             resource_monitor.stop_monitoring()
             print("Resource monitoring data saved to resource_monitor.json and resource_monitor_summary.txt")
+        if 'performance_profiler' in locals():
+            performance_profiler.save_data()
+            print("Performance profiling data saved to performance_profile.json")
         try:
             import sdl2
             import sdl2.ext
