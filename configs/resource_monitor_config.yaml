@@ -1,0 +1,82 @@
+# Resource Monitor Configuration - Optimized for Raspberry Pi + Hailo 8L
+
+# Monitoring settings
+monitoring:
+  # Sampling interval in seconds (default: 1.0)
+  # For Raspberry Pi, consider 2.0+ to reduce overhead
+  sampling_interval: 1.0
+  
+  # Log file prefix (will have .json and _summary.txt appended)
+  log_file_prefix: "resource_monitor"
+  
+  # Enable/disable specific monitoring components
+  enable_cpu: true
+  enable_memory: true
+  enable_gpu: true
+  enable_disk: true
+  enable_cpu_temperature: true  # Raspberry Pi specific
+  
+  # Hailo 8L monitoring settings
+  hailo:
+    # Enable Hailo 8L specific monitoring
+    enabled: true
+    
+    # Try to get Hailo utilization metrics
+    enable_utilization: true
+    
+    # Hailo query timeout in seconds
+    query_timeout: 5
+    
+  # GPU monitoring settings (for non-Hailo systems)
+  gpu:
+    # Require GPUtil library for GPU monitoring
+    # Set to false if GPUtil is not available
+    require_gputil: false
+    
+    # GPU memory warning threshold (percentage)
+    memory_warning_threshold: 80.0
+    
+    # GPU temperature warning threshold (Celsius)
+    temperature_warning_threshold: 85.0
+
+# Alert settings
+alerts:
+  # Enable alerts for high resource usage
+  enabled: true
+  
+  # CPU usage alert threshold (percentage)
+  cpu_threshold: 90.0
+  
+  # Memory usage alert threshold (percentage)
+  memory_threshold: 90.0
+  
+  # Disk usage alert threshold (percentage)
+  disk_threshold: 95.0
+  
+  # CPU temperature alert threshold (Celsius) - Raspberry Pi specific
+  cpu_temperature_threshold: 80.0
+  
+  # How often to check alerts (in samples, not seconds)
+  alert_check_interval: 10
+
+# Data retention
+retention:
+  # Maximum number of samples to keep in memory
+  max_samples: 10000
+  
+  # Whether to automatically save data periodically
+  auto_save: true
+  
+  # Auto-save interval (in seconds)
+  auto_save_interval: 300  # 5 minutes
+
+# Performance settings
+performance:
+  # Use high-resolution timing
+  high_resolution_timing: true
+  
+  # Minimum interval between samples to avoid overhead
+  min_sample_interval: 0.1  # 100ms
+  
+  # Enable debug logging
+  debug_logging: false

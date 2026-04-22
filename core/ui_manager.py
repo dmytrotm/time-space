@@ -12,6 +12,7 @@ except ImportError:
         KEY_1 = 2
         KEY_2 = 3
         KEY_7 = 4
+        KEY_R = 5
 
 import time
 import threading
@@ -30,15 +31,17 @@ STATE_SUCCESS = 3
 
 class UIManager:
     def __init__(
-        self, verification_manager, image_server, window_width=800, window_height=480
+        self, verification_manager, image_server, window_width=800, window_height=480, resource_monitor=None
     ):
         """
         Args:
             verification_manager: Instance of VerificationManager
             image_server: Instance of ImageServer
+            resource_monitor: Optional instance of ResourceMonitor
         """
         self.verification_manager = verification_manager
         self.image_server = image_server
+        self.resource_monitor = resource_monitor
         self.WIDTH = window_width
         self.HEIGHT = window_height
         self.is_running_verification = False
@@ -78,6 +81,18 @@ class UIManager:
             self.HEIGHT // 2,
             (200, 200, 200),
         )
+        
+        # Show resource monitor status
+        if self.resource_monitor:
+            status = "ON" if self.resource_monitor.is_monitoring else "OFF"
+            color = (50, 255, 50) if self.resource_monitor.is_monitoring else (255, 50, 50)
+            self.render_centered_text(
+                renderer,
+                font_small,
+                f"Resource Monitor: {status} (Press KEY_R to toggle)",
+                self.HEIGHT // 2 + 40,
+                color,
+            )
 
     def render_loading_screen(self, renderer, font_large, font_small):
         """Render the loading screen."""
@@ -131,6 +146,18 @@ class UIManager:
             self.HEIGHT // 2 + 100,
             (150, 150, 150),
         )
+
+    def toggle_resource_monitor(self):
+        """Toggle resource monitoring on/off."""
+        if self.resource_monitor:
+            if self.resource_monitor.is_monitoring:
+                self.resource_monitor.stop_monitoring()
+                print("Resource monitoring paused")
+            else:
+                self.resource_monitor.start_monitoring()
+                print("Resource monitoring resumed")
+        else:
+            print("Resource monitor not available")
 
     def start_verification(self):
         """Start the verification process."""
@@ -259,6 +286,8 @@ class UIManager:
                             or current_state == STATE_SUCCESS
                         ):
                             current_state = STATE_START
+                elif key == ecodes.KEY_R:
+                    self.toggle_resource_monitor()
 
             sdl2.SDL_SetRenderDrawColor(renderer, 30, 30, 40, 255)
             sdl2.SDL_RenderClear(renderer)

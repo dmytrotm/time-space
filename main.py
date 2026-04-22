@@ -2,6 +2,7 @@ from core import (
     ImageServer,
     UIManager,
     VerificationManager,
+    ResourceMonitor,
 )
 from utils.constants import (
     WINDOW_WIDTH,
@@ -17,6 +18,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the verification system with cameras')
     parser.add_argument('--camera-ids', type=int, nargs=2, default=[0, 1],
                         help='Camera IDs to use (default: 0 1)')
+    parser.add_argument('--no-resource-monitor', action='store_true',
+                        help='Disable resource monitoring (default: enabled)')
     
     args = parser.parse_args()
     
@@ -64,7 +67,16 @@ if __name__ == "__main__":
         verification_manager = VerificationManager()
         verification_manager.start()
         
-        ui_manager = UIManager(verification_manager, cameras, WINDOW_WIDTH, WINDOW_HEIGHT)
+        # Initialize resource monitor if not disabled
+        resource_monitor = None
+        if not args.no_resource_monitor:
+            resource_monitor = ResourceMonitor(sampling_interval=1.0, log_file="resource_monitor.log")
+            resource_monitor.start_monitoring()
+            print("Resource monitoring enabled")
+        else:
+            print("Resource monitoring disabled")
+        
+        ui_manager = UIManager(verification_manager, cameras, WINDOW_WIDTH, WINDOW_HEIGHT, resource_monitor)
         ui_manager.main_loop()
         
     except KeyboardInterrupt:
@@ -78,6 +90,9 @@ if __name__ == "__main__":
             verification_manager.stop()
         if 'cameras' in locals():
             cameras.release()
+        if 'resource_monitor' in locals():
+            resource_monitor.stop_monitoring()
+            print("Resource monitoring data saved to resource_monitor.json and resource_monitor_summary.txt")
         try:
             import sdl2
             import sdl2.ext
