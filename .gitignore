@@ -16,6 +16,8 @@ project_output
 masks
 tapes
 .DS_Store
+photos/
+log/
 
 yolo11dataset
 yolo11dataset_grouped
@@ -25,3 +27,8 @@ branchdataset
 
 verify*
 log
+
+hailort.1.log
+hailort.log
+resource_monitor.json
+resource_monitor_summary.txt

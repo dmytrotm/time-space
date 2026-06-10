@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from utils.constants import GREEN, RED, ORANGE
+from configs.config import GREEN, RED, ORANGE
 
 
 class Visualizer:

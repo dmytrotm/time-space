@@ -7,19 +7,29 @@ import argparse
 import sys
 import os
 
+from configs.config import CAMERA_RESOLUTION
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
 from processors.workspace_extractor import WorkspaceExtractor
 
 from processors.aruco_detector import aruco_factory 
-def display_markers(id = 0):
-    cap = cv2.VideoCapture(id, cv2.CAP_V4L2)
+def setup_camera(camera_id):
+    cap = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 4000)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 3000)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_RESOLUTION[0])
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_RESOLUTION[1])
+    cap.set(cv2.CAP_PROP_FPS, 5)
+    for _ in range(10): 
+        cap.read()
+    return cap
 
-    for _ in range(4): cap.read()
+def display_markers(id = 0):
+    if id is None:
+        id = 0
+    current_id = id
+    cap = setup_camera(current_id)
 
     extractor = WorkspaceExtractor(aruco_factory(track_time=False))
 
@@ -41,12 +51,25 @@ def display_markers(id = 0):
             if event.type == sdl2.SDL_QUIT:
                 running = False
                 break
-            if event.type == sdl2.SDL_KEYDOWN:
+            elif event.type == sdl2.SDL_KEYDOWN:
+                if event.key.repeat != 0:
+                    continue
                 if event.key.keysym.sym == sdl2.SDLK_ESCAPE:
                     running = False
+                elif event.key.keysym.sym == sdl2.SDLK_1:
+                    print(f"Switching from camera {current_id}...")
+                    cap.release()
+                    current_id = (current_id + 1) % 10
+                    cap = setup_camera(current_id)
+                    print(f"Switched to camera {current_id}")
 
         ret, image = cap.read()
-        if not ret: break
+        if not ret: 
+            print(f"Camera {current_id} failed, trying next...")
+            cap.release()
+            current_id = (current_id + 1) % 10
+            cap = setup_camera(current_id)
+            continue
 
         markers = extractor.aruco_detector.detect_markers(image)
         
@@ -87,7 +110,7 @@ def display_markers(id = 0):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Continuous detection and display of custom markers in a video stream.")
-    parser.add_argument("--id", type=int, help="Cams ID")
+    parser.add_argument("--id", type=int, default=0, help="Cams ID (default: 0)")
     args = parser.parse_args()
 
     display_markers(args.id)

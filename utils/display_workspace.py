@@ -6,7 +6,7 @@ import sdl2.ext
 import argparse
 import sys
 import os
-from constants import ZONES_DICT
+from configs.config import ZONES_DICT_WS1, ZONES_DICT_WS2, CAMERA_RESOLUTION
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -17,8 +17,8 @@ from processors.aruco_detector import aruco_factory
 def setup_camera(camera_id):
     cap = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 4000)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 3000)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_RESOLUTION[0])
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_RESOLUTION[1])
     for _ in range(10): 
         cap.read()
     return cap
@@ -29,9 +29,8 @@ def display_workspace(id = 0, output_folder = "photos"):
     current_id = id
     cap = setup_camera(current_id)
 
-    my_zones = ZONES_DICT
-    
-    extractor = WorkspaceExtractor(aruco_factory(track_time=False), defined_zones=my_zones)
+    extractor_ws1 = WorkspaceExtractor(aruco_factory(track_time=False), defined_zones=ZONES_DICT_WS1)
+    extractor_ws2 = WorkspaceExtractor(aruco_factory(track_time=False), defined_zones=ZONES_DICT_WS2)
 
     sdl2.ext.init()
     window_width, window_height = 1280, 720  
@@ -60,7 +59,9 @@ def display_workspace(id = 0, output_folder = "photos"):
             cap = setup_camera(current_id)
             continue
 
-        ws_id, workspace_image = extractor.extract_workspace(image)
+        ws_id, workspace_image = extractor_ws1.extract_workspace(image)
+        if workspace_image is None:
+            ws_id, workspace_image = extractor_ws2.extract_workspace(image)
 
         events = sdl2.ext.get_events()
         for event in events:
@@ -109,14 +110,16 @@ def display_workspace(id = 0, output_folder = "photos"):
                                 has_cam = True
                                 print(f"Capturing from camera {cam_id}...")
                                 temp_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-                                temp_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 4000)
-                                temp_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 3000)
+                                temp_cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_RESOLUTION[0])
+                                temp_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_RESOLUTION[1])
                                 for _ in range(10):
                                     temp_cap.read()
                                     
                                 t_ret, t_image = temp_cap.read()
                                 if t_ret:
-                                    t_ws_id, t_ws_image = extractor.extract_workspace(t_image)
+                                    t_ws_id, t_ws_image = extractor_ws1.extract_workspace(t_image)
+                                    if t_ws_image is None:
+                                        t_ws_id, t_ws_image = extractor_ws2.extract_workspace(t_image)
                                 temp_cap.release()
                         
                         if t_ws_image is not None:

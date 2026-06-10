@@ -5,7 +5,7 @@ import os
 import json
 
 from processors.roi_cropper import ROICropper
-from utils.constants import RELATIVE_HALF_SIZE_RASNET as RELATIVE_HALF_SIZE
+from configs.config import RELATIVE_HALF_SIZE_RASNET as RELATIVE_HALF_SIZE
 
 RELATIVE_HALF_SIZE = 0.052
 

@@ -14,7 +14,7 @@ from detectors import (
     MultiClassHailoDetector
 )
 from processors import ROICropper, YOLOROIMapper, WorkspaceExtractor, aruco_factory
-from utils.constants import (
+from configs.config import (
     TAPE_DETECTOR_CONF_THRESHOLD,
     TAPE_CLASS_ID,
     LABEL_CLASS_ID,
@@ -23,7 +23,8 @@ from utils.constants import (
     TAPE_DEVIATION_WRONG_LENGTH,
     WORKSPACE_EXTRACTOR_CONFIG,
     ERROR_CODES,
-    ZONES_DICT
+    ZONES_DICT_WS1,
+    ZONES_DICT_WS2
 )
 
 
@@ -72,15 +73,15 @@ def _preprocess_roi(args):
 def _extract_workspace_helper(args):
     """
     Helper to extract workspace in a thread.
-    Args: (image, extractor)
+    Args: (expected_zone, image, extractor)
     """
-    image, extractor = args
+    expected_zone, image, extractor = args
     try:
-        ws = extractor.extract_workspace(image)
-        return ws
+        zone_id, ws_img = extractor.extract_workspace(image)
+        return expected_zone, zone_id, ws_img
     except Exception as e:
         print(f"Error extracting workspace: {e}")
-        return -1, None
+        return expected_zone, -1, None
 
 
 def _orientation_check_helper(args):
@@ -141,9 +142,9 @@ def worker_logic(command_queue, result_queue, config_paths):
             "grounding_detector": GroundingWireDetector(),
             "yolo_detector": yolo_detectors,
             "tape_deviation_detector": TapeDeviationDetector(positions),
-            "yolo_roi_mapper": YOLOROIMapper(),
             "missing_wires_detector": MissingWiresDetector(),
-            "workspace_extractor": WorkspaceExtractor(aruco_factory(),ZONES_DICT),#WORKSPACE_EXTRACTOR_CONFIG
+            "workspace_extractor_ws1": WorkspaceExtractor(aruco_factory(), ZONES_DICT_WS1),
+            "workspace_extractor_ws2": WorkspaceExtractor(aruco_factory(), ZONES_DICT_WS2),
         }
 
         def find_roi_object(cropper, category, roi_id):
@@ -167,48 +168,71 @@ def worker_logic(command_queue, result_queue, config_paths):
 
                 elif command_data["command"] == "TRIGGER":
                     images = command_data["images"]
+                    workspace_id = command_data.get("workspace_id", 1)
+                    save_errors = command_data.get("save_errors", False)
 
                     try:
                         timer = TimingLogger()
                         error_codes = set()
-                        error_images = {}
+                        error_images = {} if save_errors else None
 
                         timer.start("total_inspection_time")
 
                         ws_tasks = []
+                        ext_key = f"workspace_extractor_ws{workspace_id}"
+                        extractor = detectors.get(ext_key, detectors["workspace_extractor_ws1"])
+                        
                         for i, img in enumerate(images):
-                            zone_number = i + 1
+                            expected_zone = i + 1
                             ws_tasks.append(
-                                (img, detectors["workspace_extractor"])
+                                (expected_zone, img, extractor)
                             )
 
                         timer.start("workspace_extraction_total")
+                        # _extract_workspace_helper returns (expected_zone, actual_zone_id, image)
                         ws_results = list(
                             executor.map(_extract_workspace_helper, ws_tasks)
                         )
                         timer.stop("workspace_extraction_total")
 
                         workspaces = []
-                        for zone_number, ws in ws_results:
-                            if ws is not None:
-                                if zone_number == -1:
-                                    result_queue.put(
-                                    {
-                                        "status": "DONE",
-                                        "success": False,
-                                        "error": "No workspace found",
-                                    }
-                                    )   
-                                    continue
-                                workspaces.append((zone_number, ws))
+                        missing_zones = []
+                        for expected_zone, actual_zone, ws in ws_results:
+                            if ws is None or actual_zone == -1:
+                                missing_zones.append(expected_zone)
+                            else:
+                                workspaces.append((actual_zone, ws))
                             
+                        if missing_zones:
+                            zones_str = " and ".join(str(z) for z in missing_zones)
+                            
+                            result_data = {
+                                "status": "DONE",
+                                "workspace_id": workspace_id,
+                                "success": False,
+                                "error": f"No workspace found\nfor Zone {zones_str}",
+                            }
+                            
+                            if save_errors:
+                                err_images = {}
+                                for expected_zone, _, img in ws_results:
+                                    if expected_zone in missing_zones and img is not None:
+                                        err_images[f"zone{expected_zone}_failed_crop"] = img
+                                for expected_zone, raw_img, _ in ws_tasks:
+                                    if expected_zone in missing_zones and raw_img is not None:
+                                        err_images[f"zone{expected_zone}_raw"] = raw_img
+                                result_data["error_images"] = err_images
 
-                        if not workspaces or len(workspaces) != 2:
+                            result_queue.put(result_data)
+                            continue
+
+                        if len(workspaces) != 2:
                             result_queue.put(
                                 {
                                     "status": "DONE",
+                                    "workspace_id": workspace_id,
                                     "success": False,
-                                    "error": "No workspace found",
+                                    "error": "Failed to extract\nboth zones",
                                 }
                             )
                             continue
@@ -279,7 +303,8 @@ def worker_logic(command_queue, result_queue, config_paths):
                                     roi_image
                                 ):
                                     error_codes.add(ERROR_CODES["GROUNDING_MISSING"])
-                                    error_images[roi_name] = roi_image
+                                    if save_errors:
+                                        error_images[roi_name] = roi_image
                                 timer.stop(
                                     f"grounding_detector_{roi_name}_z{zone_number}"
                                 )
@@ -312,8 +337,9 @@ def worker_logic(command_queue, result_queue, config_paths):
                                 if not detectors["missing_wires_detector"].is_present(
                                     roi_image, expected_colors
                                 ):
-                                    error_codes.add(ERROR_CODES["WIRES_MISSING"])
-                                    error_images[roi_name] = roi_image
+                                    error_codes.add(ERROR_CODES["CONNECTOR_MISSING"])
+                                    if save_errors:
+                                        error_images[roi_name] = roi_image
 
                                 timer.stop(f"wires_detector_{roi_name}_z{zone_number}")
                                 timer.add(
@@ -370,19 +396,12 @@ def worker_logic(command_queue, result_queue, config_paths):
                                         error_codes.add(
                                             ERROR_CODES["TAPE_NOT_DETECTED"]
                                         )
-                                        error_images[roi_name] = roi_image
+                                        if save_errors:
+                                            error_images[roi_name] = roi_image
 
                                         continue
 
-                                    if roi_id == 2 and CONNECTOR_CLASS_ID in detected_classes:
-                                        error_codes.add(
-                                            ERROR_CODES["WRONG_ORIENTATION"]
-                                        )
-                                        error_images[roi_name] = roi_image
-
-                                        
-                                        
-
+                                    
                                     for box_data in result.boxes:
                                         x_center, y_center, width, height = (
                                             box_data.xywhn[0]
@@ -396,13 +415,15 @@ def worker_logic(command_queue, result_queue, config_paths):
                                                 error_codes.add(
                                                     ERROR_CODES["TAPE_TOO_FAR"]
                                                 )
-                                                error_images[roi_name] = roi_image
+                                                if save_errors:
+                                                    error_images[roi_name] = roi_image
 
                                             elif correct == TAPE_DEVIATION_WRONG_LENGTH:
                                                 error_codes.add(
                                                     ERROR_CODES["TAPE_WRONG_LENGTH"]
                                                 )
-                                                error_images[roi_name] = roi_image
+                                                if save_errors:
+                                                    error_images[roi_name] = roi_image
 
                                         except (ValueError, IndexError):
                                             pass
@@ -412,14 +433,16 @@ def worker_logic(command_queue, result_queue, config_paths):
                                         error_codes.add(
                                             ERROR_CODES["LABEL_NOT_DETECTED"]
                                         )
-                                        error_images[roi_name] = roi_image
+                                        if save_errors:
+                                            error_images[roi_name] = roi_image
 
                                 elif roi_type == "CONNECTORS":
                                     if CONNECTOR_CLASS_ID not in detected_classes:
                                         error_codes.add(
-                                            ERROR_CODES["WRONG_ORIENTATION"]
+                                            ERROR_CODES["CONNECTOR_MISSING"]
                                         )
-                                        error_images[roi_name] = roi_image
+                                        if save_errors:
+                                            error_images[roi_name] = roi_image
 
                         
                         timer.stop("total_inspection_time")
@@ -428,28 +451,19 @@ def worker_logic(command_queue, result_queue, config_paths):
 
                         if error_codes:
                             combined_code = "".join(sorted(error_codes))
-                            if env["log_errors"]:
-                                result_queue.put(
-                                    {
-                                        "status": "DONE",
-                                        "success": False,
-                                        "error": combined_code,
-                                        "error_images": error_images,
-
-                                    }
-                                )
-                            else: 
-                                result_queue.put(
-                                    {
-                                        "status": "DONE",
-                                        "success": False,
-                                        "error": combined_code,
-                                    }
-                                )
+                            result_data = {
+                                "status": "DONE",
+                                "workspace_id": workspace_id,
+                                "success": False,
+                                "error": combined_code,
+                            }
+                            if save_errors and error_images:
+                                result_data["error_images"] = error_images
+                            result_queue.put(result_data)
                             
                         else:
                             result_queue.put(
-                                {"status": "DONE", "success": True, "error": ""}
+                                {"status": "DONE", "workspace_id": workspace_id, "success": True, "error": ""}
                             )
 
                     except Exception as e:
@@ -457,6 +471,7 @@ def worker_logic(command_queue, result_queue, config_paths):
                         result_queue.put(
                             {
                                 "status": "DONE",
+                                "workspace_id": workspace_id,
                                 "success": False,
                                 "error": f"Worker Error: {str(e)}",
                             }

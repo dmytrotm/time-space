@@ -287,8 +287,10 @@ class TapeDetectorHailo(BaseDetector):
         final_boxes = all_boxes[indices]
         final_scores = all_scores[indices].reshape(-1, 1)
         final_classes = all_class_ids[indices].reshape(-1, 1).astype(np.float32)
-        
         return np.concatenate((final_boxes, final_scores, final_classes), axis=-1)
+
+    def release(self):
+        self._resources_released = True
 
 
 

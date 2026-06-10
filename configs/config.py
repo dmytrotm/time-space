@@ -1,7 +1,6 @@
 import cv2
 
-WINDOW_WIDTH = 800
-WINDOW_HEIGHT = 480
+CAMERA_RESOLUTION = (4000, 3000)
 
 RELATIVE_HALF_SIZE_RASNET = 0.052
 TAPE_CLASS_ID = 2
@@ -66,16 +65,19 @@ INVALID_KEY = 255
 # Error code constants
 ERROR_CODES = {
     "GROUNDING_MISSING": "1",
-    "WIRES_MISSING": "2",
+    "CONNECTOR_MISSING": "2",
     "TAPE_NOT_DETECTED": "3",
     "TAPE_TOO_FAR": "4",
     "TAPE_WRONG_LENGTH": "5",
     "LABEL_NOT_DETECTED": "6",
-    "WRONG_ORIENTATION": "7",
-    "TWISTED_WIRES": "8",
 }
 
-ZONES_DICT = {
-    2: [4,2,3,5],
-    1: [1,2,5,6]
+ZONES_DICT_WS1 = {
+    1: [1, 2, 5, 6],
+    2: [4, 2, 3, 5]
+}
+
+ZONES_DICT_WS2 = {
+    1: [7, 8, 5, 6],
+    2: [4, 8, 9, 5]
 }

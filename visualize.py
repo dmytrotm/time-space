@@ -1,7 +1,7 @@
 from utils import Visualizer
 from processors import ROICropper, WorkspaceExtractor
 from core import ImageServer
-from utils.constants import GREEN
+from configs.config import GREEN
 import cv2
 import json
 

@@ -4,10 +4,6 @@ from core import (
     VerificationManager,
     ResourceMonitor,
 )
-from utils.constants import (
-    WINDOW_WIDTH,
-    WINDOW_HEIGHT,
-)
 import multiprocessing
 import argparse
 
@@ -20,48 +16,22 @@ if __name__ == "__main__":
                         help='Camera IDs to use (default: 0 1)')
     parser.add_argument('--no-resource-monitor', action='store_true',
                         help='Disable resource monitoring (default: enabled)')
+    parser.add_argument('--save-all', action='store_true',
+                        help='Save all photos (both success and error)')
+    parser.add_argument('--save-errors', action='store_true',
+                        help='Save only problematic error crop images')
     
     args = parser.parse_args()
     
     try:
-        print("Scanning for available cameras...")
-        import cv2
-        available_cameras = []
-        for i in range(10):  
-            cap = cv2.VideoCapture(i, cv2.CAP_V4L2)
-            if cap is not None and cap.isOpened():
-                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-                ret, frame = cap.read()
-                if ret and frame is not None:
-                    available_cameras.append(i)
-                    print(f"  Found camera at index {i}")
-                cap.release()
+        print("\nStarting TIME&SPACE Multi-Workspace System...")
         
-        if not available_cameras:
-            print("ERROR: No cameras detected on the system!")
-            print("Please check:")
-            print("  - Cameras are connected")
-            print("  - Camera permissions (try: sudo usermod -a -G video $USER)")
-            print("  - V4L2 drivers are installed")
-            exit(1)
-        
-        print(f"\nAvailable cameras: {available_cameras}")
-        
-        if args.camera_ids[0] not in available_cameras or args.camera_ids[1] not in available_cameras:
-            print(f"Warning: Requested cameras {args.camera_ids} not available")
-            if len(available_cameras) >= 2:
-                args.camera_ids = available_cameras[:2]
-                print(f"Using first two available cameras: {args.camera_ids}")
-            else:
-                print(f"ERROR: Need at least 2 cameras, only found {len(available_cameras)}")
-                exit(1)
-        
-        print(f"\nInitializing cameras: {args.camera_ids}")
-        cameras = ImageServer(use_cameras=True, camera_ids=args.camera_ids)
-        #cameras = ImageServer("Z1_0_1.png","Z2_0_1.png")
+        cameras = ImageServer(use_cameras=True, init_on_start=False)
 
         verification_manager = VerificationManager()
-        verification_manager.start()
+        # Hailo має апаратний лок на пристрій, тому ми використовуємо 1 воркер-процес
+        # (який обробляє чергу з обох робочих місць)
+        verification_manager.start(num_workers=1)
         
         # Initialize resource monitor if not disabled
         resource_monitor = None
@@ -72,7 +42,7 @@ if __name__ == "__main__":
         else:
             print("Resource monitoring disabled")
         
-        ui_manager = UIManager(verification_manager, cameras, WINDOW_WIDTH, WINDOW_HEIGHT, resource_monitor)
+        ui_manager = UIManager(verification_manager, cameras, resource_monitor=resource_monitor, save_all=args.save_all, save_errors=args.save_errors)
         ui_manager.main_loop()
         
     except KeyboardInterrupt:
