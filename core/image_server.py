@@ -250,6 +250,40 @@ class ImageServer:
 
         return images
     
+    def capture_frame(self, cam_id):
+        """Capture a single raw frame + extracted workspace frame for streaming.
+        Returns (raw_bgr, ws_bgr_or_None). Both are None if camera unavailable.
+        """
+        with self.camera_lock:
+            cam = self._connect_single_camera(cam_id)
+            if cam is None:
+                return None, None
+            try:
+                frame = self._capture_with_temp_resolution(cam, warmup=2)
+            except Exception:
+                frame = None
+            finally:
+                cam.release()
+
+        if frame is None:
+            return None, None
+
+        try:
+            _, ws_frame = self.extractor.extract_workspace(frame)
+        except Exception:
+            ws_frame = None
+
+        return frame, ws_frame
+
+    def get_assigned_cameras(self):
+        """Return sorted list of all camera IDs currently assigned to any workspace."""
+        cams = set()
+        for ws in self.workspaces.values():
+            for cam_id in ws.values():
+                if cam_id is not None:
+                    cams.add(cam_id)
+        return sorted(cams)
+
     def release(self):
         """Камери тепер не тримаються відкритими, тому release майже порожній."""
         print("ImageServer released (камери вже закриті після зйомки).")

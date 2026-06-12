@@ -3,114 +3,315 @@ import numpy as np
 import time
 import sdl2
 import sdl2.ext
+import sdl2.sdlttf as sdlttf
 import argparse
 import sys
 import os
 
-from configs.config import CAMERA_RESOLUTION
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-
+from configs.config import CAMERA_RESOLUTION
 from processors.workspace_extractor import WorkspaceExtractor
+from processors.aruco_detector import aruco_factory
 
-from processors.aruco_detector import aruco_factory 
-def setup_camera(camera_id):
-    cap = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
+# ── Camera discovery ───────────────────────────────────────────────────────────
+_ISP_PREFIXES = ("pispbe", "rpi-hevc", "bcm2835")
+
+
+def find_capture_indices():
+    """Find real V4L2 capture nodes via sysfs (no device open, instant)."""
+    sysfs_base = "/sys/class/video4linux"
+    indices = []
+    if not os.path.isdir(sysfs_base):
+        return indices
+    for entry in sorted(os.listdir(sysfs_base)):
+        if not entry.startswith("video"):
+            continue
+        sysfs_path = os.path.join(sysfs_base, entry)
+        try:
+            with open(os.path.join(sysfs_path, "index")) as f:
+                if int(f.read().strip()) != 0:
+                    continue
+        except (OSError, ValueError):
+            continue
+        try:
+            with open(os.path.join(sysfs_path, "name")) as f:
+                dev_name = f.read().strip()
+        except OSError:
+            continue
+        if any(dev_name.lower().startswith(p) for p in _ISP_PREFIXES):
+            continue
+        try:
+            indices.append(int(entry.replace("video", "")))
+        except ValueError:
+            continue
+    return indices
+
+
+def open_camera(cam_id, width=None, height=None):
+    """Open a V4L2 camera at given (or default) resolution, with warmup."""
+    w = width or CAMERA_RESOLUTION[0]
+    h = height or CAMERA_RESOLUTION[1]
+    cap = cv2.VideoCapture(cam_id, cv2.CAP_V4L2)
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_RESOLUTION[0])
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_RESOLUTION[1])
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
     cap.set(cv2.CAP_PROP_FPS, 5)
-    for _ in range(10): 
-        cap.read()
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    for _ in range(8):
+        cap.grab()
     return cap
 
-def display_markers(id = 0):
-    if id is None:
-        id = 0
-    current_id = id
-    cap = setup_camera(current_id)
 
-    extractor = WorkspaceExtractor(aruco_factory(track_time=False))
+# ── SDL helpers ────────────────────────────────────────────────────────────────
 
+def frame_to_texture(renderer, frame):
+    """Convert an OpenCV BGR frame to an SDL texture."""
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    h, w = rgb.shape[:2]
+    surface = sdl2.SDL_CreateRGBSurfaceFrom(
+        rgb.ctypes.data, w, h, 24, w * 3,
+        0x0000FF, 0x00FF00, 0xFF0000, 0
+    )
+    texture = sdl2.SDL_CreateTextureFromSurface(renderer, surface)
+    sdl2.SDL_FreeSurface(surface)
+    return texture, w, h
+
+
+def render_text(renderer, font, message, color=(255, 255, 255)):
+    """Render a UTF-8 string to an SDL texture."""
+    surface = sdlttf.TTF_RenderUTF8_Blended(
+        font, message.encode("utf-8"),
+        sdl2.SDL_Color(color[0], color[1], color[2])
+    )
+    texture = sdl2.SDL_CreateTextureFromSurface(renderer, surface)
+    w = surface.contents.w
+    h = surface.contents.h
+    sdl2.SDL_FreeSurface(surface)
+    return texture, w, h
+
+
+def draw_overlay_bar(renderer, font, text, win_w, color=(255, 255, 255)):
+    """Draw a semi-transparent black bar at the top with the given text."""
+    tex, tw, th = render_text(renderer, font, text, color)
+    sdl2.SDL_SetRenderDrawBlendMode(renderer, sdl2.SDL_BLENDMODE_BLEND)
+    sdl2.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 170)
+    sdl2.SDL_RenderFillRect(renderer, sdl2.SDL_Rect(0, 0, win_w, th + 14))
+    sdl2.SDL_RenderCopy(renderer, tex, None, sdl2.SDL_Rect(8, 7, tw, th))
+    sdl2.SDL_DestroyTexture(tex)
+
+
+# ── ArUco annotation ───────────────────────────────────────────────────────────
+
+def annotate_markers(image, detector):
+    """Detect ArUco markers and draw bounding polygons + IDs on the image."""
+    markers = detector.detect_markers(image)
+    for m in markers:
+        corners = np.array(m["corners"], dtype=np.int32)
+        cv2.polylines(image, [corners], True, (0, 255, 0), 4)
+        center = tuple(map(int, m["center"]))
+        marker_id = m["id"]
+        # Handle ndarray / list ID
+        if hasattr(marker_id, "__iter__"):
+            marker_id = int(list(marker_id)[0])
+        cv2.putText(
+            image, f"ID:{marker_id}",
+            (center[0] + 18, center[1]),
+            cv2.FONT_HERSHEY_SIMPLEX, 1.8, (0, 255, 0), 3
+        )
+    return image, len(markers)
+
+
+# ── Main ───────────────────────────────────────────────────────────────────────
+
+def display_markers():
+    # --- Discover cameras ---
+    cam_ids = find_capture_indices()
+    if not cam_ids:
+        print("sysfs scan found nothing, falling back to brute-force 0..9...")
+        cam_ids = []
+        for i in range(10):
+            cap = cv2.VideoCapture(i, cv2.CAP_V4L2)
+            if cap.isOpened():
+                cam_ids.append(i)
+            cap.release()
+    if not cam_ids:
+        print("Error: No cameras found.")
+        return
+    print(f"Found {len(cam_ids)} camera(s): {cam_ids}")
+
+    # --- ArUco detector ---
+    detector = aruco_factory(track_time=False)
+
+    # --- SDL init ---
     sdl2.ext.init()
-    window_width, window_height = 1280, 720  
-    window = sdl2.ext.Window("Detected Markers (SDL2)", size=(window_width, window_height))
+    sdlttf.TTF_Init()
+
+    display_mode = sdl2.SDL_DisplayMode()
+    if sdl2.SDL_GetCurrentDisplayMode(0, display_mode) == 0:
+        WIN_W, WIN_H = display_mode.w, display_mode.h
+    else:
+        WIN_W, WIN_H = 1280, 720
+    print(f"Display: {WIN_W}x{WIN_H}")
+
+    window = sdl2.ext.Window("Marker Detection", size=(WIN_W, WIN_H))
     window.show()
-    
-    renderer = sdl2.ext.Renderer(window)
-    
-    print("Початок трансляції SDL2... Закрийте вікно або натисніть ESC для виходу.")
+    sdl2.SDL_ShowCursor(sdl2.SDL_DISABLE)
+    renderer = sdl2.SDL_CreateRenderer(window.window, -1, sdl2.SDL_RENDERER_ACCELERATED)
+
+    font = sdlttf.TTF_OpenFont(b"/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 26)
+    font_cell = sdlttf.TTF_OpenFont(b"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18)
+
+    # --- State ---
+    current_idx = 0
+    cap = open_camera(cam_ids[current_idx])
+    show_all = False
+    all_caps: dict = {}
 
     running = True
     prev_time = time.time()
+    fps = 0.0
+    TARGET_FPS = 30
+    FRAME_DELAY = int(1000 / TARGET_FPS)
+
+    print("Controls: 1=next cam | 3=all cams | ESC/7=exit")
 
     while running:
-        events = sdl2.ext.get_events()
-        for event in events:
+        frame_start = sdl2.SDL_GetTicks()
+
+        # --- Events ---
+        for event in sdl2.ext.get_events():
             if event.type == sdl2.SDL_QUIT:
                 running = False
                 break
-            elif event.type == sdl2.SDL_KEYDOWN:
-                if event.key.repeat != 0:
-                    continue
-                if event.key.keysym.sym == sdl2.SDLK_ESCAPE:
-                    running = False
-                elif event.key.keysym.sym == sdl2.SDLK_1:
-                    print(f"Switching from camera {current_id}...")
+            if event.type != sdl2.SDL_KEYDOWN or event.key.repeat != 0:
+                continue
+
+            sym = event.key.keysym.sym
+
+            if sym in (sdl2.SDLK_ESCAPE, sdl2.SDLK_7):
+                running = False
+
+            elif sym == sdl2.SDLK_1:
+                # Next camera
+                if show_all:
+                    for c in all_caps.values():
+                        c.release()
+                    all_caps.clear()
+                    show_all = False
+                else:
                     cap.release()
-                    current_id = (current_id + 1) % 10
-                    cap = setup_camera(current_id)
-                    print(f"Switched to camera {current_id}")
+                current_idx = (current_idx + 1) % len(cam_ids)
+                cap = open_camera(cam_ids[current_idx])
+                print(f"Camera → {cam_ids[current_idx]}  ({current_idx + 1}/{len(cam_ids)})")
 
-        ret, image = cap.read()
-        if not ret: 
-            print(f"Camera {current_id} failed, trying next...")
-            cap.release()
-            current_id = (current_id + 1) % 10
-            cap = setup_camera(current_id)
-            continue
+            elif sym == sdl2.SDLK_3:
+                # Toggle show-all grid
+                show_all = not show_all
+                if show_all:
+                    print(f"Show ALL ({len(cam_ids)} cams, 640×480 each)")
+                    cap.release()
+                    all_caps = {cid: open_camera(cid, 640, 480) for cid in cam_ids}
+                else:
+                    for c in all_caps.values():
+                        c.release()
+                    all_caps.clear()
+                    cap = open_camera(cam_ids[current_idx])
+                    print(f"Single cam mode → {cam_ids[current_idx]}")
 
-        markers = extractor.aruco_detector.detect_markers(image)
-        
-        for marker in markers:
-            corners = np.array(marker['corners'], dtype=np.int32)
-            cv2.polylines(image, [corners], True, (0, 255, 0), 6)
-            center = tuple(map(int, marker['center']))
-            cv2.putText(image, f"ID: {marker['id']}", (center[0] + 20, center[1]), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 255, 0), 4)
+        # --- Render ---
+        sdl2.SDL_SetRenderDrawColor(renderer, 18, 18, 28, 255)
+        sdl2.SDL_RenderClear(renderer)
 
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image_resized = cv2.resize(image_rgb, (window_width, window_height))
+        if show_all:
+            n = len(cam_ids)
+            cols = max(1, int(np.ceil(np.sqrt(n))))
+            rows = max(1, int(np.ceil(n / cols)))
+            cell_w = WIN_W // cols
+            cell_h = WIN_H // rows
 
-        surface = sdl2.SDL_CreateRGBSurfaceFrom(
-            image_resized.ctypes.data,
-            window_width,
-            window_height,
-            24, 
-            window_width * 3, 
-            0xff0000, 0x00ff00, 0x0000ff, 0 
-        )
+            for i, cid in enumerate(cam_ids):
+                c = all_caps.get(cid)
+                if c is None:
+                    continue
+                ret, frame = c.read()
+                if not ret or frame is None:
+                    continue
 
-        texture = sdl2.SDL_CreateTextureFromSurface(renderer.sdlrenderer, surface)
-        sdl2.SDL_FreeSurface(surface) 
+                annotated, n_markers = annotate_markers(frame, detector)
+                cell_frame = cv2.resize(annotated, (cell_w, cell_h))
 
-        renderer.clear()
-        sdl2.SDL_RenderCopy(renderer.sdlrenderer, texture, None, None)
-        renderer.present()
-        
-        sdl2.SDL_DestroyTexture(texture) 
+                x = (i % cols) * cell_w
+                y = (i // cols) * cell_h
+
+                tex, _, _ = frame_to_texture(renderer, cell_frame)
+                sdl2.SDL_RenderCopy(renderer, tex, None, sdl2.SDL_Rect(x, y, cell_w, cell_h))
+                sdl2.SDL_DestroyTexture(tex)
+
+                # Cell label
+                if font_cell:
+                    clr = (80, 255, 80) if n_markers > 0 else (200, 200, 200)
+                    label = f"#{i + 1} ID:{cid} | {n_markers} marker(s)"
+                    lt, lw, lh = render_text(renderer, font_cell, label, clr)
+                    sdl2.SDL_SetRenderDrawBlendMode(renderer, sdl2.SDL_BLENDMODE_BLEND)
+                    sdl2.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150)
+                    sdl2.SDL_RenderFillRect(renderer, sdl2.SDL_Rect(x, y, lw + 12, lh + 8))
+                    sdl2.SDL_RenderCopy(renderer, lt, None, sdl2.SDL_Rect(x + 6, y + 4, lw, lh))
+                    sdl2.SDL_DestroyTexture(lt)
+
+            if font:
+                draw_overlay_bar(renderer, font, f"ALL CAMERAS ({n}) | FPS: {fps:.1f}  [1=single  3=all  ESC=exit]", WIN_W)
+
+        else:
+            ret, image = cap.read()
+            if not ret or image is None:
+                print(f"Camera {cam_ids[current_idx]} failed → switching...")
+                cap.release()
+                current_idx = (current_idx + 1) % len(cam_ids)
+                cap = open_camera(cam_ids[current_idx])
+                continue
+
+            annotated, n_markers = annotate_markers(image, detector)
+            render_frame = cv2.resize(annotated, (WIN_W, WIN_H))
+            tex, _, _ = frame_to_texture(renderer, render_frame)
+            sdl2.SDL_RenderCopy(renderer, tex, None, sdl2.SDL_Rect(0, 0, WIN_W, WIN_H))
+            sdl2.SDL_DestroyTexture(tex)
+
+            if font:
+                clr = (80, 255, 80) if n_markers > 0 else (220, 220, 220)
+                overlay = (
+                    f"CAM {current_idx + 1}/{len(cam_ids)}  ID:{cam_ids[current_idx]} | "
+                    f"{n_markers} marker(s) detected | FPS:{fps:.1f}  [1=next  3=all  ESC=exit]"
+                )
+                draw_overlay_bar(renderer, font, overlay, WIN_W, clr)
+
+        sdl2.SDL_RenderPresent(renderer)
 
         curr = time.time()
-        fps = 1.0 / (curr - prev_time)
+        fps = 1.0 / (curr - prev_time) if (curr - prev_time) > 0 else 0
         prev_time = curr
 
+        elapsed = sdl2.SDL_GetTicks() - frame_start
+        if elapsed < FRAME_DELAY:
+            sdl2.SDL_Delay(FRAME_DELAY - elapsed)
+
+    # --- Cleanup ---
     cap.release()
+    for c in all_caps.values():
+        c.release()
+    if font:
+        sdlttf.TTF_CloseFont(font)
+    if font_cell:
+        sdlttf.TTF_CloseFont(font_cell)
+    sdlttf.TTF_Quit()
+    sdl2.SDL_DestroyRenderer(renderer)
     sdl2.ext.quit()
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Continuous detection and display of custom markers in a video stream.")
-    parser.add_argument("--id", type=int, default=0, help="Cams ID (default: 0)")
-    args = parser.parse_args()
 
-    display_markers(args.id)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Detect and display ArUco markers from all cameras.\n"
+                    "  1 = cycle camera  |  3 = show all  |  ESC/7 = exit"
+    )
+    parser.parse_args()
+    display_markers()
