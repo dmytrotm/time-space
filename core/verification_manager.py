@@ -3,6 +3,8 @@ from core.worker import worker_logic
 from configs.config import (
     CONFIG_ROI_Z1_PATH,
     CONFIG_ROI_Z2_PATH,
+    CONFIG_ROI_Z3_PATH,
+    CONFIG_ROI_Z4_PATH,
     CONFIG_POSITIONS_PATH,
     ENVIRONMENT_CONFIG
 )
@@ -15,6 +17,8 @@ class VerificationManager:
         self.config_paths = {
             "roi_z1": CONFIG_ROI_Z1_PATH,
             "roi_z2": CONFIG_ROI_Z2_PATH,
+            "roi_z3": CONFIG_ROI_Z3_PATH,
+            "roi_z4": CONFIG_ROI_Z4_PATH,
             "positions": CONFIG_POSITIONS_PATH,
             "env": ENVIRONMENT_CONFIG
         }

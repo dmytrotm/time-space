@@ -38,6 +38,8 @@ PHOTOS_DIR = _os.path.expanduser("~/logs")
 # Configuration File Paths
 CONFIG_ROI_Z1_PATH = "configs/rois_z1.json"
 CONFIG_ROI_Z2_PATH = "configs/rois_z2.json"
+CONFIG_ROI_Z3_PATH = "configs/rois_z3.json"
+CONFIG_ROI_Z4_PATH = "configs/rois_z4.json"
 CONFIG_POSITIONS_PATH = "configs/positions.json"
 WORKSPACE_EXTRACTOR_CONFIG = "configs/custom_markers.yaml"
 ENVIRONMENT_CONFIG = "configs/env.json"

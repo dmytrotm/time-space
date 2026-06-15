@@ -128,6 +128,10 @@ def worker_logic(command_queue, result_queue, config_paths):
             roi_data_z1 = json.load(f)
         with open(config_paths["roi_z2"], "r") as f:
             roi_data_z2 = json.load(f)
+        with open(config_paths["roi_z3"], "r") as f:
+            roi_data_z3 = json.load(f)
+        with open(config_paths["roi_z4"], "r") as f:
+            roi_data_z4 = json.load(f)
         with open(config_paths["positions"], "r") as f:
             positions = json.load(f)
         with open(config_paths["env"], "r") as f:
@@ -139,6 +143,8 @@ def worker_logic(command_queue, result_queue, config_paths):
         detectors = {
             "roi_cropper_z1": ROICropper(roi_data_z1),
             "roi_cropper_z2": ROICropper(roi_data_z2),
+            "roi_cropper_z3": ROICropper(roi_data_z3),
+            "roi_cropper_z4": ROICropper(roi_data_z4),
             "grounding_detector": GroundingWireDetector(),
             "yolo_detector": yolo_detectors,
             "tape_deviation_detector": TapeDeviationDetector(positions),
@@ -249,12 +255,20 @@ def worker_logic(command_queue, result_queue, config_paths):
                         roi_processing_tasks = []
 
                         for zone_number, workspace in workspaces:
-                            if zone_number == 1:
-                                cropper = detectors["roi_cropper_z1"]
-                                roi_data = roi_data_z1
+                            if workspace_id == 1:
+                                if zone_number == 1:
+                                    cropper = detectors["roi_cropper_z1"]
+                                    roi_data = roi_data_z1
+                                else:
+                                    cropper = detectors["roi_cropper_z2"]
+                                    roi_data = roi_data_z2
                             else:
-                                cropper = detectors["roi_cropper_z2"]
-                                roi_data = roi_data_z2
+                                if zone_number == 1:
+                                    cropper = detectors["roi_cropper_z3"]
+                                    roi_data = roi_data_z3
+                                else:
+                                    cropper = detectors["roi_cropper_z4"]
+                                    roi_data = roi_data_z4
 
                             roi_map_per_zone[zone_number] = {
                                 "workspace": workspace,
