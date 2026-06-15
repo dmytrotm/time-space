@@ -175,6 +175,7 @@ def worker_logic(command_queue, result_queue, config_paths):
                         timer = TimingLogger()
                         error_codes = set()
                         error_images = {} if save_errors else None
+                        roi_results_list = []
 
                         timer.start("total_inspection_time")
 
@@ -211,6 +212,8 @@ def worker_logic(command_queue, result_queue, config_paths):
                                 "workspace_id": workspace_id,
                                 "success": False,
                                 "error": f"No workspace found\nfor Zone {zones_str}",
+                                "raw_images": images,
+                                "roi_results_list": [],
                             }
                             
                             if save_errors:
@@ -233,6 +236,8 @@ def worker_logic(command_queue, result_queue, config_paths):
                                     "workspace_id": workspace_id,
                                     "success": False,
                                     "error": "Failed to extract\nboth zones",
+                                    "raw_images": images,
+                                    "roi_results_list": [],
                                 }
                             )
                             continue
@@ -305,6 +310,9 @@ def worker_logic(command_queue, result_queue, config_paths):
                                     error_codes.add(ERROR_CODES["GROUNDING_MISSING"])
                                     if save_errors:
                                         error_images[roi_name] = roi_image
+                                    roi_results_list.append({"name": roi_name, "zone": zone_number, "success": False})
+                                else:
+                                    roi_results_list.append({"name": roi_name, "zone": zone_number, "success": True})
                                 timer.stop(
                                     f"grounding_detector_{roi_name}_z{zone_number}"
                                 )
@@ -340,6 +348,9 @@ def worker_logic(command_queue, result_queue, config_paths):
                                     error_codes.add(ERROR_CODES["CONNECTOR_MISSING"])
                                     if save_errors:
                                         error_images[roi_name] = roi_image
+                                    roi_results_list.append({"name": roi_name, "zone": zone_number, "success": False})
+                                else:
+                                    roi_results_list.append({"name": roi_name, "zone": zone_number, "success": True})
 
                                 timer.stop(f"wires_detector_{roi_name}_z{zone_number}")
                                 timer.add(
@@ -398,10 +409,14 @@ def worker_logic(command_queue, result_queue, config_paths):
                                         )
                                         if save_errors:
                                             error_images[roi_name] = roi_image
-
+                                        roi_results_list.append({"name": f"{roi_name}_DETECTED", "zone": zone, "success": False})
+                                        roi_results_list.append({"name": f"{roi_name}_TOO_FAR", "zone": zone, "success": None})
+                                        roi_results_list.append({"name": f"{roi_name}_WRONG_LENGTH", "zone": zone, "success": None})
                                         continue
 
                                     
+                                    tape_too_far = False
+                                    tape_wrong_length = False
                                     for box_data in result.boxes:
                                         x_center, y_center, width, height = (
                                             box_data.xywhn[0]
@@ -417,6 +432,7 @@ def worker_logic(command_queue, result_queue, config_paths):
                                                 )
                                                 if save_errors:
                                                     error_images[roi_name] = roi_image
+                                                tape_too_far = True
 
                                             elif correct == TAPE_DEVIATION_WRONG_LENGTH:
                                                 error_codes.add(
@@ -424,9 +440,13 @@ def worker_logic(command_queue, result_queue, config_paths):
                                                 )
                                                 if save_errors:
                                                     error_images[roi_name] = roi_image
+                                                tape_wrong_length = True
 
                                         except (ValueError, IndexError):
                                             pass
+                                    roi_results_list.append({"name": f"{roi_name}_DETECTED", "zone": zone, "success": True})
+                                    roi_results_list.append({"name": f"{roi_name}_TOO_FAR", "zone": zone, "success": not tape_too_far})
+                                    roi_results_list.append({"name": f"{roi_name}_WRONG_LENGTH", "zone": zone, "success": not tape_wrong_length})
 
                                 elif roi_type == "LABEL":
                                     if LABEL_CLASS_ID not in detected_classes:
@@ -435,6 +455,9 @@ def worker_logic(command_queue, result_queue, config_paths):
                                         )
                                         if save_errors:
                                             error_images[roi_name] = roi_image
+                                        roi_results_list.append({"name": roi_name, "zone": zone, "success": False})
+                                    else:
+                                        roi_results_list.append({"name": roi_name, "zone": zone, "success": True})
 
                                 elif roi_type == "CONNECTORS":
                                     if CONNECTOR_CLASS_ID not in detected_classes:
@@ -443,6 +466,9 @@ def worker_logic(command_queue, result_queue, config_paths):
                                         )
                                         if save_errors:
                                             error_images[roi_name] = roi_image
+                                        roi_results_list.append({"name": roi_name, "zone": zone, "success": False})
+                                    else:
+                                        roi_results_list.append({"name": roi_name, "zone": zone, "success": True})
 
                         
                         timer.stop("total_inspection_time")
@@ -456,6 +482,8 @@ def worker_logic(command_queue, result_queue, config_paths):
                                 "workspace_id": workspace_id,
                                 "success": False,
                                 "error": combined_code,
+                                "raw_images": images,
+                                "roi_results_list": roi_results_list,
                             }
                             if save_errors and error_images:
                                 result_data["error_images"] = error_images
@@ -463,7 +491,7 @@ def worker_logic(command_queue, result_queue, config_paths):
                             
                         else:
                             result_queue.put(
-                                {"status": "DONE", "workspace_id": workspace_id, "success": True, "error": ""}
+                                {"status": "DONE", "workspace_id": workspace_id, "success": True, "error": "", "raw_images": images, "roi_results_list": roi_results_list}
                             )
 
                     except Exception as e:
@@ -474,6 +502,8 @@ def worker_logic(command_queue, result_queue, config_paths):
                                 "workspace_id": workspace_id,
                                 "success": False,
                                 "error": f"Worker Error: {str(e)}",
+                                "raw_images": images,
+                                "roi_results_list": roi_results_list if 'roi_results_list' in locals() else [],
                             }
                         )
 

@@ -1,4 +1,5 @@
 import cv2
+import os as _os
 
 CAMERA_RESOLUTION = (4000, 3000)
 
@@ -31,6 +32,8 @@ LOADING_TEXT = "Loading... Please wait."
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 FONT_SCALE = 1.2
 FONT_THICKNESS = 2
+
+PHOTOS_DIR = _os.path.expanduser("~/logs")
 
 # Configuration File Paths
 CONFIG_ROI_Z1_PATH = "configs/rois_z1.json"
